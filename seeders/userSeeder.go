@@ -36,15 +36,19 @@ func SeedUsers() error {
 		return err
 	}
 
+	divID := uint(2)
+	planID := uint(2)
+
 	// Data user dengan RoleID
 	users := []models.User{
 		{
-			Name:    "Admin User",
-			Email:   "admin@example.com",
-			Phone:   "+6281234567890",
-			Address: "123 Admin Street, Jakarta",
-			Photo:   "https://example.com/photos/admin.jpg",
-			RoleID:  adminRole.ID,
+			Name:       "Admin User",
+			Email:      "admin@example.com",
+			Phone:      "+6281234567890",
+			Address:    "123 Admin Street, Jakarta",
+			Photo:      "https://example.com/photos/admin.jpg",
+			DivisionID: &divID,
+			RoleID:     adminRole.Id,
 		},
 		{
 			Name:    "Role Bank Induk",
@@ -52,7 +56,7 @@ func SeedUsers() error {
 			Phone:   "+6289876543210",
 			Address: "456 User Avenue, Bandung",
 			Photo:   "https://example.com/photos/user.jpg",
-			RoleID:  parentRole.ID,
+			RoleID:  parentRole.Id,
 		},
 		{
 			Name:    "Role Bank Pembantu",
@@ -60,7 +64,7 @@ func SeedUsers() error {
 			Phone:   "+6289876543210",
 			Address: "456 User Avenue, Jember",
 			Photo:   "https://example.com/photos/user.jpg",
-			RoleID:  childRole.ID,
+			RoleID:  childRole.Id,
 		},
 		{
 			Name:    "Role End User",
@@ -68,7 +72,8 @@ func SeedUsers() error {
 			Phone:   "+6289876543210",
 			Address: "456 User Avenue, Jember",
 			Photo:   "https://example.com/photos/user.jpg",
-			RoleID:  userRole.ID,
+			RoleID:  userRole.Id,
+			PlanID:  &planID,
 		},
 		{
 			Name:    "Role Mitra",
@@ -76,7 +81,7 @@ func SeedUsers() error {
 			Phone:   "+6289876543210",
 			Address: "456 User Avenue, Jember",
 			Photo:   "https://example.com/photos/user.jpg",
-			RoleID:  partnerRole.ID,
+			RoleID:  partnerRole.Id,
 		},
 	}
 
@@ -85,15 +90,15 @@ func SeedUsers() error {
 
 		// Sesuaikan password default berdasarkan RoleID
 		switch user.RoleID {
-		case adminRole.ID:
+		case adminRole.Id:
 			rawPassword = "admin123"
-		case parentRole.ID:
+		case parentRole.Id:
 			rawPassword = "parent123"
-		case childRole.ID:
+		case childRole.Id:
 			rawPassword = "child123"
-		case userRole.ID: 
+		case userRole.Id:
 			rawPassword = "user123"
-		case partnerRole.ID:
+		case partnerRole.Id:
 			rawPassword = "partner123"
 		default:
 			rawPassword = "default123"

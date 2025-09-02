@@ -5,9 +5,10 @@ import (
 )
 
 type ResponseWithData struct {
-	Status  string `json:"status"`
-	Message string `json:"message"`
-	Data    any    `json:"data"`
+	Status  string  `json:"status"`
+	Message string  `json:"message"`
+	Token   *string `json:"token"`
+	Data    any     `json:"data"`
 }
 
 type ResponseWithoutData struct {
@@ -15,11 +16,12 @@ type ResponseWithoutData struct {
 	Message string `json:"message"`
 }
 
-func Response(c *fiber.Ctx, statusCode int, status string, message string, data any) error {
+func Response(c *fiber.Ctx, statusCode int, status string, message string, data any, token *string) error {
 	if data != nil {
 		return c.Status(statusCode).JSON(ResponseWithData{
 			Status:  status,
 			Message: message,
+			Token:   token,
 			Data:    data,
 		})
 	} else {
