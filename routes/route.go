@@ -47,5 +47,15 @@ func SetupRoute(app *fiber.App) {
 			// Mobile Parent Bank
 			parentBank.Get("/:id", controllers.GetParentBankID)
 		}
+
+		childBank := api.Group("/child-bank")
+		{
+			childBank.Post("/", controllers.CreateChildBank)
+			childBank.Get("/", controllers.GetAllChildBanks)
+			childBank.Get("/:id", controllers.GetChildBankById)
+			childBank.Put("/:id", controllers.UpdateChildBank)
+			childBank.Delete("/:id", controllers.DeleteChildBank)
+
+		}
 	}
 }
