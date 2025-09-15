@@ -57,5 +57,15 @@ func SetupRoute(app *fiber.App) {
 			childBank.Delete("/:id", controllers.DeleteChildBank)
 
 		}
+
+		userAdmin := api.Group("/admins")
+		{
+			userAdmin.Post("/", controllers.CreateAdmin)
+			userAdmin.Get("/", controllers.GetAllAdmin)
+			userAdmin.Get("/:id", controllers.GetAdminByID)
+			userAdmin.Put("/:id", controllers.UpdateUserAdmin)
+			userAdmin.Delete("/:id", controllers.DeleteUserAdmin)
+
+		}
 	}
 }

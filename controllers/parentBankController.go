@@ -4,6 +4,7 @@ import (
 	"backend-mulungs/configs"
 	"backend-mulungs/helpers"
 	"backend-mulungs/models"
+	"strconv"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -50,17 +51,19 @@ func CreateParentBank(c *fiber.Ctx) error {
 	return helpers.Response(c, 201, "Success", "Parent Bank created successfully", parentBank, nil)
 }
 
-
 // Function for Mobile in Parent Bank
 func GetParentBankID(c *fiber.Ctx) error {
-	id := c.Params("id") // ambil ID dari URL params, contoh: /parent-bank/:id
+	id, err := strconv.Atoi(c.Params("id"))
+	if err != nil {
+		return helpers.Response(c, 400, "failed", "Invalid user ID", nil, nil)
+	}
 
-	var parentBank models.ParentBank
-	if err := configs.DB.First(&parentBank, id).Error; err != nil {
+	var user models.User
+	if err := configs.DB.Preload("ParentBank").Preload("Role").Where("id = ?", id).First(&user).Error; err != nil {
 		return helpers.Response(c, 404, "Failed", "Parent Bank not found", nil, nil)
 	}
 
-	return helpers.Response(c, 200, "Success", "Data Found", parentBank, nil)
+	return helpers.Response(c, 200, "Success", "Data Found", user.ParentBank, nil)
 }
 
 // Function for Admin in Web (Update Parent Bank)

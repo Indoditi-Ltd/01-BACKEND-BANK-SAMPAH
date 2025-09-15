@@ -38,6 +38,7 @@ func SeedUsers() error {
 
 	divID := uint(2)
 	planID := uint(2)
+	parentBankID := uint(1)
 
 	// Data user dengan RoleID
 	users := []models.User{
@@ -51,12 +52,13 @@ func SeedUsers() error {
 			RoleID:     adminRole.Id,
 		},
 		{
-			Name:    "Role Bank Induk",
-			Email:   "bankinduk@example.com",
-			Phone:   "+6289876543210",
-			Address: "456 User Avenue, Bandung",
-			Photo:   "https://example.com/photos/user.jpg",
-			RoleID:  parentRole.Id,
+			Name:         "Role Bank Induk",
+			Email:        "bankinduk@example.com",
+			Phone:        "+6289876543210",
+			Address:      "456 User Avenue, Bandung",
+			Photo:        "https://example.com/photos/user.jpg",
+			RoleID:       parentRole.Id,
+			ParentBankID: &parentBankID,
 		},
 		{
 			Name:    "Role Bank Pembantu",
