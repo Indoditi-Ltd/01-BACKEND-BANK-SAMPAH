@@ -19,6 +19,7 @@ func SetupRoute(app *fiber.App) {
 	api := app.Group("/api")
 	{
 		api.Post("/login", controllers.LoginC)
+		api.Post("/register-user", controllers.RegisterUser)
 
 		app.Use(middleware.RequireAuth)
 
@@ -65,7 +66,6 @@ func SetupRoute(app *fiber.App) {
 			userAdmin.Get("/:id", controllers.GetAdminByID)
 			userAdmin.Put("/:id", controllers.UpdateUserAdmin)
 			userAdmin.Delete("/:id", controllers.DeleteUserAdmin)
-
 		}
 	}
 }

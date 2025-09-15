@@ -25,4 +25,5 @@ type User struct {
 	Plan         *Plan          `json:"plan" gorm:"foreignKey:PlanID"`
 	ParentBankID *uint          `json:"-"`
 	ParentBank   *ParentBank    `json:"parent_bank" gorm:"foreignKey:ParentBankID"`
+	Norek        *uint          `json:"norek" gorm:"type:char(50)"`
 }

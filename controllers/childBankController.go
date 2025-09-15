@@ -20,6 +20,7 @@ func CreateChildBank(c *fiber.Ctx) error {
 		RW           string `json:"rw"`
 		Address      string `json:"address"`
 		ParentBankID uint   `json:"parentBank_id"`
+		Norek        uint   `json:"norek"`
 	}
 
 	// Parse body JSON
@@ -34,6 +35,7 @@ func CreateChildBank(c *fiber.Ctx) error {
 		RW:           body.RW,
 		Address:      body.Address,
 		ParentBankID: body.ParentBankID,
+		Norek:        body.Norek,
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
 	}
@@ -50,6 +52,7 @@ func CreateChildBank(c *fiber.Ctx) error {
 		RW:           childBank.RW,
 		Address:      childBank.Address,
 		ParentBankID: childBank.ParentBankID,
+		Norek:        childBank.Norek,
 	}
 
 	return helpers.Response(c, 201, "Success", "Child Bank created successfully", res, nil)
@@ -91,6 +94,7 @@ func UpdateChildBank(c *fiber.Ctx) error {
 		RW           string `json:"rw"`
 		Address      string `json:"address"`
 		ParentBankID uint   `json:"parentBank_id"`
+		Norek        uint   `json:"norek"`
 	}
 
 	if err := c.BodyParser(&body); err != nil {
@@ -107,6 +111,7 @@ func UpdateChildBank(c *fiber.Ctx) error {
 	childBank.RW = body.RW
 	childBank.Address = body.Address
 	childBank.ParentBankID = body.ParentBankID
+	childBank.Norek = body.Norek
 
 	if err := configs.DB.Save(&childBank).Error; err != nil {
 		return helpers.Response(c, 500, "Failed", "Failed to update child bank", nil, nil)
@@ -119,6 +124,7 @@ func UpdateChildBank(c *fiber.Ctx) error {
 		RW:           childBank.RW,
 		Address:      childBank.Address,
 		ParentBankID: childBank.ParentBankID,
+		Norek:        childBank.Norek,
 	}
 
 	return helpers.Response(c, 200, "Success", "Child Bank updated successfully", res, nil)
