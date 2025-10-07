@@ -67,5 +67,14 @@ func SetupRoute(app *fiber.App) {
 			userAdmin.Put("/:id", controllers.UpdateUserAdmin)
 			userAdmin.Delete("/:id", controllers.DeleteUserAdmin)
 		}
+
+		ppob := api.Group("/ppob")
+		{
+			ppob.Get("/prepaid", controllers.GetListPrepaid)
+			ppob.Get("/postpaid/:type?", controllers.GetListPostpaid)
+			ppob.Get("/postpaid/:type/:province", controllers.GetListPostpaid)
+			ppob.Post("/margin", controllers.CreateMargin)
+		}
+
 	}
 }
