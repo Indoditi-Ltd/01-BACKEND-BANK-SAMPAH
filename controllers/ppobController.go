@@ -14,10 +14,11 @@ import (
 	"os"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 )
 
-func MakeSign() string {
-	toSign := os.Getenv("IDENTITY") + os.Getenv("APIKEY") + "pl"
+func MakeSignPricelist(UniqueCode string) string {
+	toSign := os.Getenv("IDENTITY") + os.Getenv("APIKEY") + UniqueCode
 	h := md5.New()
 	h.Write([]byte(toSign))
 	return hex.EncodeToString(h.Sum(nil))
@@ -36,7 +37,7 @@ func CreateMargin(c *fiber.Ctx) error {
 	// cek apakah sudah ada data margin di tabel
 	var existing models.Ppob
 	if err := configs.DB.First(&existing).Error; err == nil {
-		// 🔹 jika sudah ada → update
+		// jika sudah ada → update
 		existing.Margin = body.Margin
 		if err := configs.DB.Save(&existing).Error; err != nil {
 			return helpers.Response(c, 400, "Failed", "Failed to update margin", nil, nil)
@@ -44,7 +45,7 @@ func CreateMargin(c *fiber.Ctx) error {
 		return helpers.Response(c, 200, "Success", "Margin updated successfully", existing, nil)
 	}
 
-	// 🔹 kalau belum ada → buat baru
+	// kalau belum ada → buat baru
 	ppob := models.Ppob{
 		Margin: body.Margin,
 	}
@@ -58,9 +59,9 @@ func CreateMargin(c *fiber.Ctx) error {
 // get list prepaid PPOB
 func GetListPrepaid(c *fiber.Ctx) error {
 	username := os.Getenv("IDENTITY")
-	sign := MakeSign()
-
-	fmt.Println("SIGN:", sign)
+	typ := c.Params("type")
+	operator := c.Query("operator")
+	sign := MakeSignPricelist("pl")
 
 	if username == "" || sign == "" {
 		return helpers.Response(c, 400, "Failed", "Username or sign is Empty", nil, nil)
@@ -78,7 +79,8 @@ func GetListPrepaid(c *fiber.Ctx) error {
 	}
 	jsonBody, _ := json.Marshal(reqBody)
 
-	url := "https://prepaid.iak.dev/api/pricelist"
+	// url := "https://prepaid.iak.dev/api/pricelist/%s"
+	url := fmt.Sprintf("https://prepaid.iak.dev/api/pricelist/%s/%s", typ, operator)
 	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonBody))
 
 	if err != nil {
@@ -110,7 +112,7 @@ func GetListPostpaid(c *fiber.Ctx) error {
 	typ := c.Params("type")
 	province := c.Query("province")
 	username := os.Getenv("IDENTITY")
-	sign := MakeSign()
+	sign := MakeSignPricelist("pl")
 
 	if username == "" || sign == "" {
 		return helpers.Response(c, 400, "Failed", "Username or sign is Empty", nil, nil)
@@ -161,4 +163,17 @@ func GetListPostpaid(c *fiber.Ctx) error {
 	}
 
 	return helpers.Response(c, 200, "Success", "Data retrieved successfully", result.Data.Pasca, nil)
+}
+
+func InqueryPrepaid(c *fiber.Ctx) error {
+	username := os.Getenv("IDENTITY")
+	requestID := uuid.New().String()
+	sign := MakeSignPricelist(requestID)
+
+	if username == "" || sign == "" {
+		return helpers.Response(c, 400, "Failed", "Username or sign is Empty", nil, nil)
+	}
+
+	return helpers.Response(c, 400, "Failed", "Username or sign is Empty", nil, nil)
+
 }

@@ -70,11 +70,23 @@ func SetupRoute(app *fiber.App) {
 
 		ppob := api.Group("/ppob")
 		{
-			ppob.Get("/prepaid", controllers.GetListPrepaid)
+			ppob.Get("/prepaid/:type?", controllers.GetListPrepaid)
 			ppob.Get("/postpaid/:type?", controllers.GetListPostpaid)
 			ppob.Get("/postpaid/:type/:province", controllers.GetListPostpaid)
 			ppob.Post("/margin", controllers.CreateMargin)
 		}
 
+		region := api.Group("/region")
+		{
+			region.Get("/province", controllers.RegionProvince)
+			region.Get("/district", controllers.RegionDistrict)
+			region.Get("/subdistrict", controllers.RegionSubDistrict)
+			region.Get("/village", controllers.RegionVillage)
+		}
+
+		dash := api.Group("/dashboard")
+		{
+			dash.Get("/admin", controllers.DashboardController)
+		}
 	}
 }

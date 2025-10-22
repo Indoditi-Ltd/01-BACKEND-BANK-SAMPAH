@@ -46,10 +46,10 @@ type ProductPrepaid struct {
 
 // Struktur body yang dikirim ke API eksternal
 type ExternalRequestPostpaid struct {
-	Commands string `json:"commands"`
-	Status   string `json:"status"`
-	Username string `json:"username"`
-	Sign     string `json:"sign"`
+	Commands string  `json:"commands"`
+	Status   string  `json:"status"`
+	Username string  `json:"username"`
+	Sign     string  `json:"sign"`
 	Province *string `json:"province,omitempty"`
 }
 
@@ -70,4 +70,28 @@ type ProductPostpaid struct {
 	Type     string  `json:"type"`
 	Category string  `json:"category"`
 	Province string  `json:"province"`
+}
+
+type ExternalRequestTopup struct {
+	Username    string `json:"username"`
+	RefId       string `json:"ref_id"`
+	CustomerId  string `json:"customer_id"`
+	ProductCode string `json:"product_code"`
+	Sign        string `json:"sign"`
+}
+
+type PrepaidResponseTopup struct {
+	Data DataTopup `json:"data"`
+}
+
+type DataTopup struct {
+	RefId       string  `json:"ref_id"`
+	Status      int     `json:"status"`
+	ProductCode string  `json:"product_code"`
+	CustomerId  string  `json:"customer_id"`
+	Price       float64 `json:"price"`
+	Message     string  `json:"message"`
+	Balance     float64 `json:"balance"`
+	TrId        float64 `json:"tr_id"`
+	Rc          string  `json:"rc"`
 }
