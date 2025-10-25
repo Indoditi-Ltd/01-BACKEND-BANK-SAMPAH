@@ -32,11 +32,12 @@ func SetupRoute(app *fiber.App) {
 		// for website
 		api.Get("/list-topup", controllers.TransactionAllTopUp)
 		api.Get("/list-withdraw", controllers.TransactionAllWithdraw)
+		api.Get("/roles", controllers.ListRoleC)
 
 		// for role parent bank, child bank, mitra, end user
 		api.Post("/create-topup", controllers.TransactionCreateTopUp)
 		api.Post("/create-withdraw", controllers.TransactionCreateWithdraw)
-
+		
 		parentBank := api.Group("/parent-bank")
 		{
 			// Website Admin

@@ -44,6 +44,12 @@ type ProductPrepaid struct {
 	ProductCategory    string  `json:"product_category"`
 }
 
+type ProductEtollPrepaid struct {
+	ProductDescription string `json:"product_description"`
+	ProductOperator     string `json:"product_operator"`
+	IconURL            string `json:"icon_url"`
+}
+
 // Struktur body yang dikirim ke API eksternal
 type ExternalRequestPostpaid struct {
 	Commands string  `json:"commands"`

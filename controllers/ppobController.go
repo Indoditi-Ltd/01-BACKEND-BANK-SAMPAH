@@ -12,6 +12,8 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"regexp"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -91,6 +93,7 @@ func GetListPrepaid(c *fiber.Ctx) error {
 	body, _ := io.ReadAll(resp.Body)
 
 	var result models.PrepaidResponse
+
 	if err := json.Unmarshal(body, &result); err != nil {
 		return helpers.Response(c, 400, "Failed", "Gagal decode response API", nil, nil)
 	}
@@ -99,12 +102,78 @@ func GetListPrepaid(c *fiber.Ctx) error {
 		return helpers.Response(c, 400, "Failed", result.Data.Message, nil, nil)
 	}
 
+	if typ == "etoll" && operator == "" {
+		for i := range result.Data.Pricelist {
+			price := result.Data.Pricelist[i].ProductPrice
+			result.Data.Pricelist[i].ProductPrice = helpers.RoundToNearest(price * (1 + margin/100))
+		}
+
+		uniqueEtoll := UniqueEtollByDescription(result.Data.Pricelist)
+
+		allowed := map[string]bool{
+			"alipay":                 false,
+			"dana":                   true,
+			"gopay_e-money":          true,
+			"ovo":                    true,
+			"shopee_pay":             true,
+			"indomaret_card_e-money": true,
+			"mandiri_e-toll":         true,
+			"linkaja":                true,
+		}
+
+		filtered := []models.ProductEtollPrepaid{}
+		for _, item := range uniqueEtoll {
+			key := strings.ToLower(item.ProductOperator)
+			if allowed[key] {
+				filtered = append(filtered, models.ProductEtollPrepaid{
+					ProductDescription: item.ProductDescription,
+					ProductOperator:    key,
+					IconURL:            item.IconURL,
+				})
+			}
+		}
+
+		return helpers.Response(c, 200, "Success", "Data etoll berhasil diambil", filtered, nil)
+	}
+
 	for i := range result.Data.Pricelist {
 		price := result.Data.Pricelist[i].ProductPrice
 		result.Data.Pricelist[i].ProductPrice = helpers.RoundToNearest(price * (1 + margin/100))
 	}
 
 	return helpers.Response(c, 200, "Success", "Data retrieved successfully", result.Data.Pricelist, nil)
+}
+
+func UniqueEtollByDescription(products []models.ProductPrepaid) []models.ProductEtollPrepaid {
+	seen := make(map[string]bool)
+	unique := make([]models.ProductEtollPrepaid, 0)
+
+	// Regex untuk hapus tanda kurung dan spasi, ganti dengan "_"
+	re := regexp.MustCompile(`[()\s]+`)
+
+	for _, p := range products {
+		if !seen[p.ProductDescription] {
+			seen[p.ProductDescription] = true
+
+			// Bersihkan product description → jadi operator
+			operator := re.ReplaceAllString(p.ProductDescription, "_")
+
+			// Hapus underscore berlebih di awal/akhir dan tengah
+			operator = strings.Trim(operator, "_")
+			operator = strings.ReplaceAll(operator, "__", "_")
+
+			// Ubah jadi huruf kecil semua
+			operator = strings.ToLower(operator)
+
+			unique = append(unique, models.ProductEtollPrepaid{
+				ProductDescription: p.ProductDescription,
+				ProductOperator:    operator,
+				IconURL:            p.IconURL,
+			})
+		}
+	}
+
+	return unique
 }
 
 // get list postpaid
