@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
@@ -65,6 +66,8 @@ func GetListPrepaid(c *fiber.Ctx) error {
 	NumberPLN := c.Query("numberPLN")
 	NumberOVO := c.Query("numberOVO")
 	Number := c.Query("numberPulsa")
+	bicaraStr := c.Query("bicara") // hasilnya string, misal "true" atau "false"
+	bicara, _ := strconv.ParseBool(bicaraStr)
 
 	sign := MakeSignPricelist("pl")
 
@@ -201,7 +204,7 @@ func GetListPrepaid(c *fiber.Ctx) error {
 	}
 
 	// --- Inquiry Pulsa ---
-	if typ == "pulsa" && Number != "" {
+	if bicara && Number != "" {
 		inquiryReq := map[string]string{
 			"username":    username,
 			"customer_id": Number,
@@ -228,11 +231,12 @@ func GetListPrepaid(c *fiber.Ctx) error {
 		// Operator dari hasil inquiry
 		operatorName := strings.ToLower(inquiryResult.Data.Operator)
 
-		// Filter hanya produk dengan kategori/operator yang sama
+		// 🟢 Filter hanya product_category == "bicara"
 		filtered := []models.ProductPrepaid{}
 		for _, item := range result.Data.Pricelist {
-			if strings.Contains(strings.ToLower(item.ProductCategory), operatorName) ||
-				strings.Contains(strings.ToLower(item.ProductDescription), operatorName) {
+			if strings.ToLower(item.ProductCategory) == "bicara" &&
+				(strings.Contains(strings.ToLower(item.ProductDescription), operatorName) ||
+					strings.Contains(strings.ToLower(item.ProductCode), operatorName)) {
 				filtered = append(filtered, item)
 			}
 		}
@@ -243,6 +247,54 @@ func GetListPrepaid(c *fiber.Ctx) error {
 		}
 
 		// Gabungkan data operator + produk
+		combined := models.CombinedPrepaidResponse{
+			Customer:  inquiryResult.Data,
+			Pricelist: filtered,
+		}
+
+		return helpers.Response(c, 200, "Success", fmt.Sprintf("Data Pulsa %s berhasil digabungkan", strings.Title(operatorName)), combined, nil)
+	}
+
+	// --- Inquiry Pulsa ---
+	if typ == "pulsa" && Number != "" {
+		inquiryReq := map[string]string{
+			"username":    username,
+			"customer_id": Number,
+			"sign":        MakeSignPricelist("op"),
+		}
+		inquiryBody, _ := json.Marshal(inquiryReq)
+		inquiryResp, err := http.Post("https://prepaid.iak.dev/api/check-operator", "application/json", bytes.NewBuffer(inquiryBody))
+		if err != nil {
+			return helpers.Response(c, 400, "Failed", "Gagal request inquiry Pulsa", nil, nil)
+		}
+		defer inquiryResp.Body.Close()
+
+		inquiryData, _ := io.ReadAll(inquiryResp.Body)
+		var inquiryResult models.InquiryPulsaResponse
+		if err := json.Unmarshal(inquiryData, &inquiryResult); err != nil {
+			return helpers.Response(c, 400, "Failed", "Gagal decode inquiry Pulsa", nil, nil)
+		}
+
+		if inquiryResult.Data.RC != "00" || inquiryResult.Data.Operator == "" {
+			return helpers.Response(c, 400, "Failed", inquiryResult.Data.Message, nil, nil)
+		}
+
+		operatorName := strings.ToLower(inquiryResult.Data.Operator)
+
+		// 🧩 Filter hanya produk yang cocok dengan operator, dan TIDAK "bicara"
+		filtered := []models.ProductPrepaid{}
+		for _, item := range result.Data.Pricelist {
+			if (strings.Contains(strings.ToLower(item.ProductCategory), operatorName) ||
+				strings.Contains(strings.ToLower(item.ProductDescription), operatorName)) &&
+				strings.ToLower(item.ProductCategory) != "bicara" {
+				filtered = append(filtered, item)
+			}
+		}
+
+		if len(filtered) == 0 {
+			return helpers.Response(c, 400, "Failed", fmt.Sprintf("Tidak ada produk pulsa untuk operator %s", operatorName), nil, nil)
+		}
+
 		combined := models.CombinedPrepaidResponse{
 			Customer:  inquiryResult.Data,
 			Pricelist: filtered,
