@@ -64,6 +64,8 @@ func GetListPrepaid(c *fiber.Ctx) error {
 	operator := c.Query("operator")
 	NumberPLN := c.Query("numberPLN")
 	NumberOVO := c.Query("numberOVO")
+	Number := c.Query("numberPulsa")
+
 	sign := MakeSignPricelist("pl")
 
 	if username == "" || sign == "" {
@@ -198,6 +200,57 @@ func GetListPrepaid(c *fiber.Ctx) error {
 		return helpers.Response(c, 200, "Success", "Data OVO berhasil digabungkan", combined, nil)
 	}
 
+	// --- Inquiry Pulsa ---
+	if typ == "pulsa" && Number != "" {
+		inquiryReq := map[string]string{
+			"username":    username,
+			"customer_id": Number,
+			"sign":        MakeSignPricelist("op"),
+		}
+		inquiryBody, _ := json.Marshal(inquiryReq)
+		inquiryResp, err := http.Post("https://prepaid.iak.dev/api/check-operator", "application/json", bytes.NewBuffer(inquiryBody))
+		if err != nil {
+			return helpers.Response(c, 400, "Failed", "Gagal request inquiry Pulsa", nil, nil)
+		}
+		defer inquiryResp.Body.Close()
+
+		inquiryData, _ := io.ReadAll(inquiryResp.Body)
+		var inquiryResult models.InquiryPulsaResponse
+		if err := json.Unmarshal(inquiryData, &inquiryResult); err != nil {
+			return helpers.Response(c, 400, "Failed", "Gagal decode inquiry Pulsa", nil, nil)
+		}
+
+		// 🧩 Jika inquiry gagal (rc bukan "00" atau operator kosong)
+		if inquiryResult.Data.RC != "00" || inquiryResult.Data.Operator == "" {
+			return helpers.Response(c, 400, "Failed", inquiryResult.Data.Message, nil, nil)
+		}
+
+		// Operator dari hasil inquiry
+		operatorName := strings.ToLower(inquiryResult.Data.Operator)
+
+		// Filter hanya produk dengan kategori/operator yang sama
+		filtered := []models.ProductPrepaid{}
+		for _, item := range result.Data.Pricelist {
+			if strings.Contains(strings.ToLower(item.ProductCategory), operatorName) ||
+				strings.Contains(strings.ToLower(item.ProductDescription), operatorName) {
+				filtered = append(filtered, item)
+			}
+		}
+
+		// Jika tidak ada produk yang cocok, beri pesan error
+		if len(filtered) == 0 {
+			return helpers.Response(c, 400, "Failed", fmt.Sprintf("Tidak ada produk untuk operator %s", operatorName), nil, nil)
+		}
+
+		// Gabungkan data operator + produk
+		combined := models.CombinedPrepaidResponse{
+			Customer:  inquiryResult.Data,
+			Pricelist: filtered,
+		}
+
+		return helpers.Response(c, 200, "Success", fmt.Sprintf("Data Pulsa %s berhasil digabungkan", strings.Title(operatorName)), combined, nil)
+	}
+
 	return helpers.Response(c, 200, "Success", "Data retrieved successfully", result.Data.Pricelist, nil)
 }
 
@@ -289,4 +342,8 @@ func GetListPostpaid(c *fiber.Ctx) error {
 	}
 
 	return helpers.Response(c, 200, "Success", "Data retrieved successfully", result.Data.Pasca, nil)
+}
+
+func TopupPrepaid() {
+
 }

@@ -96,6 +96,20 @@ type OVOCustomerData struct {
 
 
 // ==========================
+// 6️⃣ Response Inquiry Pulsa
+// ==========================
+type InquiryPulsaResponse struct {
+	Data PulsaInquiryData `json:"data"`
+}
+
+type PulsaInquiryData struct {
+	Operator string `json:"operator"`
+	Message  string `json:"message"`
+	RC       string `json:"rc"`
+}
+
+
+// ==========================
 // 5️⃣ Response Gabungan (Inquiry + Pricelist)
 // ==========================
 type CombinedPrepaidResponse struct {
