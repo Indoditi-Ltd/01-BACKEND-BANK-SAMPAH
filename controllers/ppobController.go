@@ -16,7 +16,6 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
 )
 
 func MakeSignPricelist(UniqueCode string) string {
@@ -63,6 +62,8 @@ func GetListPrepaid(c *fiber.Ctx) error {
 	username := os.Getenv("IDENTITY")
 	typ := c.Params("type")
 	operator := c.Query("operator")
+	NumberPLN := c.Query("numberPLN")
+	NumberOVO := c.Query("numberOVO")
 	sign := MakeSignPricelist("pl")
 
 	if username == "" || sign == "" {
@@ -139,6 +140,62 @@ func GetListPrepaid(c *fiber.Ctx) error {
 	for i := range result.Data.Pricelist {
 		price := result.Data.Pricelist[i].ProductPrice
 		result.Data.Pricelist[i].ProductPrice = helpers.RoundToNearest(price * (1 + margin/100))
+	}
+
+	if typ == "pln" && NumberPLN != "" {
+		inquiryReq := map[string]string{
+			"username":    username,
+			"customer_id": NumberPLN,
+			"sign":        MakeSignPricelist(NumberPLN),
+		}
+		inquiryBody, _ := json.Marshal(inquiryReq)
+		urlInqueryPLN := "https://prepaid.iak.dev/api/inquiry-pln"
+		inquiryResp, err := http.Post(urlInqueryPLN, "application/json", bytes.NewBuffer(inquiryBody))
+
+		if err != nil {
+			return helpers.Response(c, 400, "Failed", "Gagal request inquiry PLN", nil, nil)
+		}
+		defer inquiryResp.Body.Close()
+
+		inquiryData, _ := io.ReadAll(inquiryResp.Body)
+		var inquiryResult models.InquiryPLNResponse
+		if err := json.Unmarshal(inquiryData, &inquiryResult); err != nil {
+			return helpers.Response(c, 400, "Failed", "Destination number not found", nil, nil)
+		}
+
+		combined := models.CombinedPrepaidResponse{
+			Customer:  inquiryResult.Data,
+			Pricelist: result.Data.Pricelist,
+		}
+		return helpers.Response(c, 200, "Success", "Data PLN berhasil digabungkan", combined, nil)
+
+	}
+
+	// --- Jika OVO, lakukan Inquiry OVO ---
+	if typ == "etoll" && operator == "ovo" && NumberOVO != "" {
+		inquiryReq := map[string]string{
+			"username":    username,
+			"customer_id": NumberOVO,
+			"sign":        MakeSignPricelist(NumberOVO),
+		}
+		inquiryBody, _ := json.Marshal(inquiryReq)
+		inquiryResp, err := http.Post("https://prepaid.iak.dev/api/inquiry-ovo", "application/json", bytes.NewBuffer(inquiryBody))
+		if err != nil {
+			return helpers.Response(c, 400, "Failed", "Gagal request inquiry OVO", nil, nil)
+		}
+		defer inquiryResp.Body.Close()
+
+		inquiryData, _ := io.ReadAll(inquiryResp.Body)
+		var inquiryResult models.InquiryOVOResponse
+		if err := json.Unmarshal(inquiryData, &inquiryResult); err != nil {
+			return helpers.Response(c, 400, "Failed", "Destination number not found", nil, nil)
+		}
+
+		combined := models.CombinedPrepaidResponse{
+			Customer:  inquiryResult.Data,
+			Pricelist: result.Data.Pricelist,
+		}
+		return helpers.Response(c, 200, "Success", "Data OVO berhasil digabungkan", combined, nil)
 	}
 
 	return helpers.Response(c, 200, "Success", "Data retrieved successfully", result.Data.Pricelist, nil)
@@ -232,17 +289,4 @@ func GetListPostpaid(c *fiber.Ctx) error {
 	}
 
 	return helpers.Response(c, 200, "Success", "Data retrieved successfully", result.Data.Pasca, nil)
-}
-
-func InqueryPrepaid(c *fiber.Ctx) error {
-	username := os.Getenv("IDENTITY")
-	requestID := uuid.New().String()
-	sign := MakeSignPricelist(requestID)
-
-	if username == "" || sign == "" {
-		return helpers.Response(c, 400, "Failed", "Username or sign is Empty", nil, nil)
-	}
-
-	return helpers.Response(c, 400, "Failed", "Username or sign is Empty", nil, nil)
-
 }

@@ -23,7 +23,16 @@ type ExternalRequestPrepaid struct {
 
 // Struktur response dari API eksternal
 type PrepaidResponse struct {
-	Data struct {
+	// Untuk response info pelanggan
+	Status       string `json:"status,omitempty"`
+	CustomerID   string `json:"customer_id,omitempty"`
+	MeterNo      string `json:"meter_no,omitempty"`
+	SubscriberID string `json:"subscriber_id,omitempty"`
+	Name         string `json:"name,omitempty"`
+	SegmentPower string `json:"segment_power,omitempty"`
+	RC           string `json:"rc,omitempty"`
+	Message      string `json:"message,omitempty"`
+	Data         struct {
 		Pricelist []ProductPrepaid `json:"pricelist"`
 		RC        string           `json:"rc"`
 		Message   string           `json:"message"`
@@ -46,8 +55,52 @@ type ProductPrepaid struct {
 
 type ProductEtollPrepaid struct {
 	ProductDescription string `json:"product_description"`
-	ProductOperator     string `json:"product_operator"`
+	ProductOperator    string `json:"product_operator"`
 	IconURL            string `json:"icon_url"`
+}
+
+
+// ==========================
+// 3️⃣ Response Inquiry PLN
+// ==========================
+type InquiryPLNResponse struct {
+	Data PLNCustomerData `json:"data"`
+}
+
+type PLNCustomerData struct {
+	Status       string `json:"status"`
+	CustomerID   string `json:"customer_id"`
+	MeterNo      string `json:"meter_no"`
+	SubscriberID string `json:"subscriber_id"`
+	Name         string `json:"name"`
+	SegmentPower string `json:"segment_power"`
+	Message      string `json:"message"`
+	RC           string `json:"rc"`
+}
+
+
+// ==========================
+// 4️⃣ Response Inquiry OVO
+// ==========================
+type InquiryOVOResponse struct {
+	Data OVOCustomerData `json:"data"`
+}
+
+type OVOCustomerData struct {
+	Status     string `json:"status"`
+	CustomerID string `json:"customer_id"`
+	Name       string `json:"name"`
+	Message    string `json:"message"`
+	RC         string `json:"rc"`
+}
+
+
+// ==========================
+// 5️⃣ Response Gabungan (Inquiry + Pricelist)
+// ==========================
+type CombinedPrepaidResponse struct {
+	Customer  interface{}      `json:"customer"`  // bisa PLN atau OVO
+	Pricelist []ProductPrepaid `json:"pricelist"` // daftar produk
 }
 
 // Struktur body yang dikirim ke API eksternal
