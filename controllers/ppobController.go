@@ -303,6 +303,91 @@ func GetListPrepaid(c *fiber.Ctx) error {
 		return helpers.Response(c, 200, "Success", fmt.Sprintf("Data Pulsa %s berhasil digabungkan", strings.Title(operatorName)), combined, nil)
 	}
 
+	// --- Inquiry Data ---
+	if typ == "data" && Number != "" {
+		inquiryReq := map[string]string{
+			"username":    username,
+			"customer_id": Number,
+			"sign":        MakeSignPricelist("op"),
+		}
+		inquiryBody, _ := json.Marshal(inquiryReq)
+		inquiryResp, err := http.Post("https://prepaid.iak.dev/api/check-operator", "application/json", bytes.NewBuffer(inquiryBody))
+		if err != nil {
+			return helpers.Response(c, 400, "Failed", "Gagal request inquiry Data", nil, nil)
+		}
+		defer inquiryResp.Body.Close()
+
+		inquiryData, _ := io.ReadAll(inquiryResp.Body)
+		var inquiryResult models.InquiryPulsaResponse
+		if err := json.Unmarshal(inquiryData, &inquiryResult); err != nil {
+			return helpers.Response(c, 400, "Failed", "Gagal decode inquiry Data", nil, nil)
+		}
+
+		// ❌ Jika nomor tidak valid
+		if inquiryResult.Data.RC != "00" || inquiryResult.Data.Operator == "" {
+			return helpers.Response(c, 400, "Failed", inquiryResult.Data.Message, nil, nil)
+		}
+
+		operatorName := strings.ToLower(inquiryResult.Data.Operator)
+
+		// ✅ Daftar resmi operator internet
+		operatorMapping := map[string]string{
+			"axis":      "axis_paket_internet",
+			"telkomsel": "telkomsel_paket_internet",
+			"indosat":   "indosat_paket_internet",
+			"smartfren": "smartfren_paket_internet",
+			"tri":       "tri_paket_internet",
+			"3":         "tri_paket_internet", // alias tri
+			"xl":        "xl_paket_internet",
+		}
+
+		// ✅ Tentukan kategori target berdasarkan hasil inquiry
+		targetCategory, ok := operatorMapping[operatorName]
+		if !ok {
+			return helpers.Response(c, 400, "Failed", fmt.Sprintf("Operator %s tidak dikenali", operatorName), nil, nil)
+		}
+
+		// 🔁 Update URL endpoint agar diarahkan ke kategori operator mapping
+		url = fmt.Sprintf("https://prepaid.iak.dev/api/pricelist/%s/%s", typ, targetCategory)
+
+		// 🔁 Request ulang daftar produk sesuai kategori mapping
+		resp2, err := http.Post(url, "application/json", bytes.NewBuffer(jsonBody))
+		if err != nil {
+			return helpers.Response(c, 400, "Failed", "Gagal request API external", nil, nil)
+		}
+		defer resp2.Body.Close()
+
+		body2, _ := io.ReadAll(resp2.Body)
+		var result2 models.PrepaidResponse
+		if err := json.Unmarshal(body2, &result2); err != nil {
+			return helpers.Response(c, 400, "Failed", "Gagal decode response API", nil, nil)
+		}
+
+		if result2.Data.RC != "00" {
+			return helpers.Response(c, 400, "Failed", result2.Data.Message, nil, nil)
+		}
+
+		// ✅ Filter hanya produk aktif dari hasil mapping
+		filtered := []models.ProductPrepaid{}
+		for _, item := range result2.Data.Pricelist {
+			if strings.ToLower(item.Status) == "active" {
+				filtered = append(filtered, item)
+			}
+		}
+
+		if len(filtered) == 0 {
+			return helpers.Response(c, 400, "Failed", fmt.Sprintf("Tidak ada produk untuk operator %s", operatorName), nil, nil)
+		}
+
+		// ✅ Gabungkan hasil inquiry + produk
+		combined := models.CombinedPrepaidResponse{
+			Customer:  inquiryResult.Data,
+			Pricelist: filtered,
+		}
+
+		return helpers.Response(c, 200, "Success", fmt.Sprintf("Data %s berhasil digabungkan dari /data/%s", strings.Title(operatorName), targetCategory), combined, nil)
+	}
+
 	return helpers.Response(c, 200, "Success", "Data retrieved successfully", result.Data.Pricelist, nil)
 }
 
