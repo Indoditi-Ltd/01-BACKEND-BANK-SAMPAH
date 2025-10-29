@@ -53,13 +53,6 @@ type ProductPrepaid struct {
 	ProductCategory    string  `json:"product_category"`
 }
 
-type ProductEtollPrepaid struct {
-	ProductDescription string `json:"product_description"`
-	ProductOperator    string `json:"product_operator"`
-	IconURL            string `json:"icon_url"`
-}
-
-
 // ==========================
 // 3️⃣ Response Inquiry PLN
 // ==========================
@@ -168,3 +161,10 @@ type DataTopup struct {
 	TrId        float64 `json:"tr_id"`
 	Rc          string  `json:"rc"`
 }
+
+type ProductListPrepaid struct {
+	ProductDescription string `json:"product_description"`
+	ProductOperator    string `json:"product_operator"`
+	IconURL            string `json:"icon_url"`
+}
+

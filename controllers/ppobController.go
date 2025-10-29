@@ -8,6 +8,8 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
+
+	// "errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,6 +19,7 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
+	// "gorm.io/gorm"
 )
 
 func MakeSignPricelist(UniqueCode string) string {
@@ -68,6 +71,8 @@ func GetListPrepaid(c *fiber.Ctx) error {
 	Number := c.Query("numberPulsa")
 	bicaraStr := c.Query("bicara") // hasilnya string, misal "true" atau "false"
 	bicara, _ := strconv.ParseBool(bicaraStr)
+	streamingStr := c.Query("streaming") // hasilnya string, misal "true" atau "false"
+	streaming, _ := strconv.ParseBool(streamingStr)
 
 	sign := MakeSignPricelist("pl")
 
@@ -127,11 +132,11 @@ func GetListPrepaid(c *fiber.Ctx) error {
 			"linkaja":                true,
 		}
 
-		filtered := []models.ProductEtollPrepaid{}
+		filtered := []models.ProductListPrepaid{}
 		for _, item := range uniqueEtoll {
 			key := strings.ToLower(item.ProductOperator)
 			if allowed[key] {
-				filtered = append(filtered, models.ProductEtollPrepaid{
+				filtered = append(filtered, models.ProductListPrepaid{
 					ProductDescription: item.ProductDescription,
 					ProductOperator:    key,
 					IconURL:            item.IconURL,
@@ -140,6 +145,81 @@ func GetListPrepaid(c *fiber.Ctx) error {
 		}
 
 		return helpers.Response(c, 200, "Success", "Data etoll berhasil diambil", filtered, nil)
+	}
+
+	if typ == "voucher" && operator == "" {
+		uniqueEtoll := UniqueEtollByDescription(result.Data.Pricelist)
+
+		filtered := []models.ProductListPrepaid{}
+		for _, item := range uniqueEtoll {
+			key := strings.ToLower(item.ProductOperator)
+			filtered = append(filtered, models.ProductListPrepaid{
+				ProductDescription: item.ProductDescription,
+				ProductOperator:    key,
+				IconURL:            item.IconURL,
+			})
+		}
+
+		return helpers.Response(c, 200, "Success", "Data voucher berhasil diambil", filtered, nil)
+	}
+
+	// --- Inquiry Game ---
+	if typ == "game" && operator == "" {
+		var filtered []models.ProductListPrepaid
+
+		if streaming {
+			// --- Mode Streaming ---
+			// Filter dulu dari Pricelist yang punya kategori "streaming"
+			var streamingList []models.ProductPrepaid
+			for _, item := range result.Data.Pricelist {
+				if strings.EqualFold(strings.TrimSpace(item.ProductCategory), "streaming") {
+					streamingList = append(streamingList, item)
+				}
+			}
+
+			// Hilangkan duplikat
+			uniqueStreaming := UniqueEtollByDescription(streamingList)
+
+			for _, item := range uniqueStreaming {
+				filtered = append(filtered, models.ProductListPrepaid{
+					ProductDescription: item.ProductDescription,
+					ProductOperator:    item.ProductOperator,
+					IconURL:            item.IconURL,
+				})
+			}
+
+			return helpers.Response(c, 200, "Success", "Data streaming berhasil diambil", filtered, nil)
+		}
+
+		// --- Mode Game Populer ---
+		uniqueGames := UniqueEtollByDescription(result.Data.Pricelist)
+
+		popularGames := map[string]bool{
+			"mobile_legend":       true,
+			"free_fire":           true,
+			"pubg_mobile":         true,
+			"pubg_mobile_global":  true,
+			"genshin_impact":      true,
+			"honkai_star_rail":    true,
+			"valorant":            true,
+			"call_of_duty_mobile": true,
+			"clash_of_clans":      true,
+			"arena_of_valor":      true,
+			"roblox":              true,
+			"point_blank":         true,
+		}
+
+		for _, item := range uniqueGames {
+			if popularGames[strings.ToLower(item.ProductOperator)] {
+				filtered = append(filtered, models.ProductListPrepaid{
+					ProductDescription: item.ProductDescription,
+					ProductOperator:    item.ProductOperator,
+					IconURL:            item.IconURL,
+				})
+			}
+		}
+
+		return helpers.Response(c, 200, "Success", "Data game populer berhasil diambil", filtered, nil)
 	}
 
 	for i := range result.Data.Pricelist {
@@ -391,9 +471,9 @@ func GetListPrepaid(c *fiber.Ctx) error {
 	return helpers.Response(c, 200, "Success", "Data retrieved successfully", result.Data.Pricelist, nil)
 }
 
-func UniqueEtollByDescription(products []models.ProductPrepaid) []models.ProductEtollPrepaid {
+func UniqueEtollByDescription(products []models.ProductPrepaid) []models.ProductListPrepaid {
 	seen := make(map[string]bool)
-	unique := make([]models.ProductEtollPrepaid, 0)
+	unique := make([]models.ProductListPrepaid, 0)
 
 	// Regex untuk hapus tanda kurung dan spasi, ganti dengan "_"
 	re := regexp.MustCompile(`[()\s]+`)
@@ -412,7 +492,7 @@ func UniqueEtollByDescription(products []models.ProductPrepaid) []models.Product
 			// Ubah jadi huruf kecil semua
 			operator = strings.ToLower(operator)
 
-			unique = append(unique, models.ProductEtollPrepaid{
+			unique = append(unique, models.ProductListPrepaid{
 				ProductDescription: p.ProductDescription,
 				ProductOperator:    operator,
 				IconURL:            p.IconURL,
@@ -481,6 +561,94 @@ func GetListPostpaid(c *fiber.Ctx) error {
 	return helpers.Response(c, 200, "Success", "Data retrieved successfully", result.Data.Pasca, nil)
 }
 
-func TopupPrepaid() {
+// topup prepaid and save to history
+func TopupPrepaid(c *fiber.Ctx) error {
+	username := os.Getenv("IDENTITY")
 
+	var reqBody struct {
+		RefID         string `json:"ref_id"`
+		UserID        uint   `json:"user_id"`
+		ProductCode   string `json:"product_code"`
+		ProductName   string `json:"product_name"`
+		ProductPrice  int64  `json:"product_price"`
+		ProductType   string `json:"product_type"`
+		UserNumber    string `json:"user_number"`
+		TotalPrice    int64  `json:"total_price"`
+		StroomToken   string `json:"stroom_token"`
+		BillingPeriod string `json:"billing_period"`
+		Year          string `json:"year"`
+		Province      string `json:"province"`
+		Region        string `json:"region"`
+	}
+	if err := c.BodyParser(&reqBody); err != nil {
+		return helpers.Response(c, 400, "Failed", "Gagal membaca body", nil, nil)
+	}
+
+	// Ambil margin PPOB
+	// var settings models.Ppob
+	// if err := configs.DB.First(&settings).Error; err != nil {
+	// 	return helpers.Response(c, 400, "Failed", "Gagal mengambil margin", nil, nil)
+	// }
+	// margin := float64(settings.Margin)
+
+	// Request ke API eksternal
+	requestBody := models.ExternalRequestTopup{
+		Username:    username,
+		Sign:        MakeSignPricelist(reqBody.RefID),
+		RefId:       reqBody.RefID,
+		CustomerId:  reqBody.UserNumber,
+		ProductCode: reqBody.ProductCode,
+	}
+	jsonBody, _ := json.Marshal(requestBody)
+
+	resp, err := http.Post("https://prepaid.iak.dev/api/top-up", "application/json", bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return helpers.Response(c, 400, "Failed", "Gagal request API eksternal", nil, nil)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	var result models.PrepaidResponseTopup
+	if err := json.Unmarshal(body, &result); err != nil {
+		return helpers.Response(c, 400, "Failed", "Gagal decode response API", nil, nil)
+	}
+
+	// // Update saldo perusahaan
+	// marginAmount := helpers.RoundToNearest(float64(reqBody.ProductPrice) * (margin / 100))
+	// var company models.Company
+	// if err := configs.DB.First(&company).Error; err != nil {
+	// 	if errors.Is(err, gorm.ErrRecordNotFound) {
+	// 		company = models.Company{Balance: 0}
+	// 		configs.DB.Create(&company)
+	// 	} else {
+	// 		return helpers.Response(c, 400, "Failed", "Gagal mengambil data company", nil, nil)
+	// 	}
+	// }
+
+	// company.Balance += int(marginAmount)
+	// if err := configs.DB.Save(&company).Error; err != nil {
+	// 	return helpers.Response(c, 400, "Failed", "Gagal update saldo perusahaan", nil, nil)
+	// }
+
+	// Simpan riwayat ke database
+	history := models.HistoryModel{
+		UserID:        reqBody.UserID,
+		RefID:         reqBody.RefID,
+		ProductName:   reqBody.ProductName,
+		ProductPrice:  reqBody.ProductPrice,
+		ProductType:   reqBody.ProductType,
+		UserNumber:    reqBody.UserNumber,
+		TotalPrice:    reqBody.TotalPrice,
+		StroomToken:   reqBody.StroomToken,
+		BillingPeriod: reqBody.BillingPeriod,
+		Year:          reqBody.Year,
+		Province:      reqBody.Province,
+		Region:        reqBody.Region,
+		Status:        "Proses",
+	}
+	if err := configs.DB.Create(&history).Error; err != nil {
+		return helpers.Response(c, 500, "Failed", "Gagal menyimpan riwayat transaksi", nil, nil)
+	}
+
+	return helpers.Response(c, 200, "Success", "Transaksi berhasil dan riwayat tersimpan", result.Data, nil)
 }
