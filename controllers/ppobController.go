@@ -572,10 +572,10 @@ func TopupPrepaid(c *fiber.Ctx) error {
 		UserID        uint   `json:"user_id"`
 		ProductCode   string `json:"product_code"`
 		ProductName   string `json:"product_name"`
-		ProductPrice  string  `json:"product_price"`
+		ProductPrice  string `json:"product_price"`
 		ProductType   string `json:"product_type"`
 		UserNumber    string `json:"user_number"`
-		TotalPrice    string  `json:"total_price"`
+		TotalPrice    string `json:"total_price"`
 		StroomToken   string `json:"stroom_token"`
 		BillingPeriod string `json:"billing_period"`
 		Year          string `json:"year"`
@@ -613,6 +613,12 @@ func TopupPrepaid(c *fiber.Ctx) error {
 	var result models.PrepaidResponseTopup
 	if err := json.Unmarshal(body, &result); err != nil {
 		return helpers.Response(c, 400, "Failed", "Gagal decode response API", nil, nil)
+	}
+
+	// ⚠️ Jika response dari API gagal (misalnya status = 2 atau pesan MAXIMUM ...),
+	// maka jangan simpan transaksi ke database.
+	if result.Data.Status == 2 || strings.Contains(strings.ToUpper(result.Data.Message), "MAXIMUM 1 NUMBER 1 TIME IN 1 DAY") {
+		return helpers.Response(c, 400, "Failed", result.Data.Message, result.Data, nil)
 	}
 
 	// // Update saldo perusahaan
@@ -718,10 +724,7 @@ func GetHistoryByRefID(c *fiber.Ctx) error {
 	refID := c.Query("ref_id")
 
 	if refID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"status":  "error",
-			"message": "ref_id is required",
-		})
+		return helpers.Response(c, 400, "Failed", "ref_id is required", nil, nil)
 	}
 
 	var history models.HistoryModel
@@ -733,24 +736,33 @@ func GetHistoryByRefID(c *fiber.Ctx) error {
 		First(&history).Error; err != nil {
 
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-				"status":  "error",
-				"message": "history not found",
-			})
+			return helpers.Response(c, 404, "Failed", "History not found", nil, nil)
 		}
 
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"status":  "error",
-			"message": "failed to fetch history",
-			"error":   err.Error(),
-		})
+		return helpers.Response(c, 500, "Failed", "Failed to fetch history", nil, nil)
 	}
 
-	// ✅ Respons sukses
-	return c.JSON(fiber.Map{
-		"status":  "success",
-		"message": "history retrieved successfully",
-		"data":    history,
-	})
-}
+	// Format tanggal menjadi dd-mm-YYYY HH:MM
+	formattedHistory := fiber.Map{
+		"id":             history.Id,
+		"created_at":     history.CreatedAt.Format("02-01-2006 15:04"),
+		"updated_at":     history.UpdatedAt.Format("02-01-2006 15:04"),
+		"deleted_at":     history.DeletedAt,
+		"user":           history.User,
+		"ref_id":         history.RefID,
+		"product_name":   history.ProductName,
+		"product_price":  history.ProductPrice,
+		"product_type":   history.ProductType,
+		"user_number":    history.UserNumber,
+		"total_price":    history.TotalPrice,
+		"stroom_token":   history.StroomToken,
+		"billing_period": history.BillingPeriod,
+		"year":           history.Year,
+		"province":       history.Province,
+		"region":         history.Region,
+		"status":         history.Status,
+	}
 
+	// ✅ Respons sukses pakai helper
+	return helpers.Response(c, 200, "Success", "History retrieved successfully", formattedHistory, nil)
+}
