@@ -37,7 +37,7 @@ func SetupRoute(app *fiber.App) {
 		// for role parent bank, child bank, mitra, end user
 		api.Post("/create-topup", controllers.TransactionCreateTopUp)
 		api.Post("/create-withdraw", controllers.TransactionCreateWithdraw)
-		
+
 		parentBank := api.Group("/parent-bank")
 		{
 			// Website Admin
@@ -76,6 +76,8 @@ func SetupRoute(app *fiber.App) {
 			ppob.Get("/postpaid/:type?", controllers.GetListPostpaid)
 			ppob.Get("/postpaid/:type/:province", controllers.GetListPostpaid)
 			ppob.Post("/margin", controllers.CreateMargin)
+			ppob.Post("/callback", controllers.CallbackPrepaid)
+			ppob.Get("/api/history", controllers.GetHistoryByRefID)
 		}
 
 		region := api.Group("/region")
