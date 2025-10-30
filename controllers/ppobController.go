@@ -661,17 +661,17 @@ func TopupPrepaid(c *fiber.Ctx) error {
 	return helpers.Response(c, 200, "Success", "Transaksi berhasil dan riwayat tersimpan", result.Data, nil)
 }
 
+// CallbackPrepaid menangani callback dari API eksternal (misalnya IAK)
 func CallbackPrepaid(c *fiber.Ctx) error {
 	var body struct {
 		Data struct {
-			RefID       string `json:"ref_id"`
-			Status      int    `json:"status"`
-			ProductCode string `json:"product_code"`
-			SN          string `json:"sn"`
+			RefID  string `json:"ref_id"`
+			Status int    `json:"status"`
+			SN     string `json:"sn"`
 		} `json:"data"`
 	}
 
-	// Parse JSON
+	// 🧩 Parse body JSON dari callback
 	if err := c.BodyParser(&body); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"status":  "error",
@@ -682,36 +682,55 @@ func CallbackPrepaid(c *fiber.Ctx) error {
 
 	data := body.Data
 
-	stroomToken := data.SN
+	// 🪵 Log data callback untuk debugging
+	fmt.Printf("📥 Callback diterima: RefID=%s, Status=%d, SN=%s\n", data.RefID, data.Status, data.SN)
 
-	// ✂️ Pisahkan SN berdasarkan "/" (jika ada)
+	// 🚨 Cek apakah RefID kosong
+	if strings.TrimSpace(data.RefID) == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"status":  "error",
+			"message": "missing ref_id in callback data",
+		})
+	}
+
+	// ✂️ Ambil hanya bagian pertama dari SN sebagai stroom token (pisahkan dengan "/")
+	stroomToken := data.SN
 	parts := strings.Split(data.SN, "/")
 	if len(parts) > 0 {
 		stroomToken = strings.TrimSpace(parts[0])
 	}
 
-	// Update ke database berdasarkan RefID
-	err := configs.DB.Model(&models.HistoryModel{}).
+	// 🧩 Update data history berdasarkan RefID
+	result := configs.DB.Model(&models.HistoryModel{}).
 		Where("ref_id = ?", data.RefID).
 		Updates(map[string]interface{}{
 			"stroom_token": stroomToken,
 			"status":       fmt.Sprintf("%d", data.Status),
-		}).Error
+		})
 
-	if err != nil {
+	// ⚠️ Cek jika terjadi error database
+	if result.Error != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"status":  "error",
 			"message": "failed to update history",
-			"error":   err.Error(),
+			"error":   result.Error.Error(),
 		})
 	}
 
+	// ⚠️ Jika tidak ada baris yang diupdate (kemungkinan ref_id salah / tidak ditemukan)
+	if result.RowsAffected == 0 {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"status":  "error",
+			"message": "no record updated (possibly invalid ref_id)",
+		})
+	}
+
+	// ✅ Jika sukses
 	return c.JSON(fiber.Map{
 		"status":  "success",
-		"message": "callback processed",
+		"message": "callback processed and history updated successfully",
 	})
 }
-
 
 func GetHistoryByRefID(c *fiber.Ctx) error {
 	// Ambil ref_id dari query parameter
