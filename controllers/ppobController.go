@@ -661,17 +661,15 @@ func TopupPrepaid(c *fiber.Ctx) error {
 	return helpers.Response(c, 200, "Success", "Transaksi berhasil dan riwayat tersimpan", result.Data, nil)
 }
 
-// CallbackPrepaid menangani callback dari API eksternal (misalnya IAK)
 func CallbackPrepaid(c *fiber.Ctx) error {
 	var body struct {
-		Data struct {
-			RefID  string `json:"ref_id"`
-			Status int    `json:"status"`
-			SN     string `json:"sn"`
-		} `json:"data"`
+		RefID       string `json:"ref_id"`
+		Status      string `json:"status"`
+		ProductCode string `json:"product_code"`
+		SN          string `json:"sn"`
 	}
 
-	// 🧩 Parse body JSON dari callback
+	// Parse JSON
 	if err := c.BodyParser(&body); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"status":  "error",
@@ -680,35 +678,33 @@ func CallbackPrepaid(c *fiber.Ctx) error {
 		})
 	}
 
-	data := body.Data
-
-	// 🪵 Log data callback untuk debugging
-	fmt.Printf("📥 Callback diterima: RefID=%s, Status=%d, SN=%s\n", data.RefID, data.Status, data.SN)
-
-	// 🚨 Cek apakah RefID kosong
-	if strings.TrimSpace(data.RefID) == "" {
+	if strings.TrimSpace(body.RefID) == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"status":  "error",
 			"message": "missing ref_id in callback data",
 		})
 	}
 
-	// ✂️ Ambil hanya bagian pertama dari SN sebagai stroom token (pisahkan dengan "/")
-	stroomToken := data.SN
-	parts := strings.Split(data.SN, "/")
-	if len(parts) > 0 {
-		stroomToken = strings.TrimSpace(parts[0])
+	updateData := map[string]interface{}{
+		"status": body.Status,
 	}
 
-	// 🧩 Update data history berdasarkan RefID
-	result := configs.DB.Model(&models.HistoryModel{}).
-		Where("ref_id = ?", data.RefID).
-		Updates(map[string]interface{}{
-			"stroom_token": stroomToken,
-			"status":       fmt.Sprintf("%d", data.Status),
-		})
+	// ⚡ Hanya PLN yang isi stroom_token
+	if strings.Contains(strings.ToLower(body.ProductCode), "pln") {
+		parts := strings.Split(body.SN, "/")
+		if len(parts) > 0 {
+			updateData["stroom_token"] = strings.TrimSpace(parts[0])
+		}
+	} else {
+		// Non-PLN → kosongkan stroom_token
+		updateData["stroom_token"] = ""
+	}
 
-	// ⚠️ Cek jika terjadi error database
+	// Update ke database berdasarkan RefID
+	result := configs.DB.Model(&models.HistoryModel{}).
+		Where("ref_id = ?", body.RefID).
+		Updates(updateData)
+
 	if result.Error != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"status":  "error",
@@ -717,7 +713,6 @@ func CallbackPrepaid(c *fiber.Ctx) error {
 		})
 	}
 
-	// ⚠️ Jika tidak ada baris yang diupdate (kemungkinan ref_id salah / tidak ditemukan)
 	if result.RowsAffected == 0 {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"status":  "error",
@@ -725,12 +720,12 @@ func CallbackPrepaid(c *fiber.Ctx) error {
 		})
 	}
 
-	// ✅ Jika sukses
 	return c.JSON(fiber.Map{
 		"status":  "success",
-		"message": "callback processed and history updated successfully",
+		"message": "callback processed",
 	})
 }
+
 
 func GetHistoryByRefID(c *fiber.Ctx) error {
 	// Ambil ref_id dari query parameter
