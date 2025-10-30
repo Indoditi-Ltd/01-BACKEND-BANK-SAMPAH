@@ -663,10 +663,18 @@ func TopupPrepaid(c *fiber.Ctx) error {
 
 func CallbackPrepaid(c *fiber.Ctx) error {
 	var body struct {
-		RefID       string `json:"ref_id"`
-		Status      string `json:"status"`
-		ProductCode string `json:"product_code"`
-		SN          string `json:"sn"`
+		RefID          string `json:"ref_id"`
+		Status         string `json:"status"`
+		ProductCode    string `json:"product_code"`
+		CustomerID     string `json:"customer_id"`
+		Price          string `json:"price"`
+		Message        string `json:"message"`
+		SN             string `json:"sn"`
+		PIN            string `json:"pin"`
+		ActivationCode string `json:"activation_code"`
+		Balance        string `json:"balance"`
+		TrID           string `json:"tr_id"`
+		RC             string `json:"rc"`
 	}
 
 	// Parse JSON
@@ -681,7 +689,7 @@ func CallbackPrepaid(c *fiber.Ctx) error {
 	if strings.TrimSpace(body.RefID) == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"status":  "error",
-			"message": "missing ref_id in callback data",
+			"message": "missing ref_id in callback body",
 		})
 	}
 
@@ -700,7 +708,7 @@ func CallbackPrepaid(c *fiber.Ctx) error {
 		updateData["stroom_token"] = ""
 	}
 
-	// Update ke database berdasarkan RefID
+	// Update ke bodybase berdasarkan RefID
 	result := configs.DB.Model(&models.HistoryModel{}).
 		Where("ref_id = ?", body.RefID).
 		Updates(updateData)
@@ -725,7 +733,6 @@ func CallbackPrepaid(c *fiber.Ctx) error {
 		"message": "callback processed",
 	})
 }
-
 
 func GetHistoryByRefID(c *fiber.Ctx) error {
 	// Ambil ref_id dari query parameter
