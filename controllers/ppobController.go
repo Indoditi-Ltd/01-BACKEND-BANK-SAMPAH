@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"time"
 
 	// "errors"
 	"fmt"
@@ -734,8 +735,12 @@ func TopupPrepaid(c *fiber.Ctx) error {
 // 	})
 // }
 
-func CallbackPrepaid() {
-	fmt.Println("✅ CallbackPrepaid berhasil dipanggil!")
+func CallbackPrepaid(c *fiber.Ctx) error {
+	fmt.Println("✅ CallbackPrepaid berhasil dipanggil pada:", time.Now().Format("02-01-2006 15:04:05"))
+	return c.JSON(fiber.Map{
+		"status":  "success",
+		"message": "CallbackPrepaid berhasil dipanggil",
+	})
 }
 
 func GetHistoryByRefID(c *fiber.Ctx) error {
