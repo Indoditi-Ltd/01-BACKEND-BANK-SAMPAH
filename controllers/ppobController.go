@@ -662,7 +662,7 @@ func TopupPrepaid(c *fiber.Ctx) error {
 }
 
 // func CallbackPrepaid(c *fiber.Ctx) error {
-func CallbackPrepaid(c *fiber.Ctx) {
+func CallbackPrepaid() {
 	// var body struct {
 	// 	RefID          string `json:"ref_id"`
 	// 	Status         string `json:"status"`
