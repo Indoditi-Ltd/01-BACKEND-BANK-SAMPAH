@@ -661,77 +661,79 @@ func TopupPrepaid(c *fiber.Ctx) error {
 	return helpers.Response(c, 200, "Success", "Transaksi berhasil dan riwayat tersimpan", result.Data, nil)
 }
 
-func CallbackPrepaid(c *fiber.Ctx) error {
-	var body struct {
-		RefID          string `json:"ref_id"`
-		Status         string `json:"status"`
-		ProductCode    string `json:"product_code"`
-		CustomerID     string `json:"customer_id"`
-		Price          string `json:"price"`
-		Message        string `json:"message"`
-		SN             string `json:"sn"`
-		PIN            string `json:"pin"`
-		ActivationCode string `json:"activation_code"`
-		Balance        string `json:"balance"`
-		TrID           string `json:"tr_id"`
-		RC             string `json:"rc"`
-	}
+// func CallbackPrepaid(c *fiber.Ctx) error {
+func CallbackPrepaid(c *fiber.Ctx) {
+	// var body struct {
+	// 	RefID          string `json:"ref_id"`
+	// 	Status         string `json:"status"`
+	// 	ProductCode    string `json:"product_code"`
+	// 	CustomerID     string `json:"customer_id"`
+	// 	Price          string `json:"price"`
+	// 	Message        string `json:"message"`
+	// 	SN             string `json:"sn"`
+	// 	PIN            string `json:"pin"`
+	// 	ActivationCode string `json:"activation_code"`
+	// 	Balance        string `json:"balance"`
+	// 	TrID           string `json:"tr_id"`
+	// 	RC             string `json:"rc"`
+	// }
 
-	// Parse JSON
-	if err := c.BodyParser(&body); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"status":  "error",
-			"message": "invalid request body",
-			"error":   err.Error(),
-		})
-	}
+	// // Parse JSON
+	// if err := c.BodyParser(&body); err != nil {
+	// 	return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+	// 		"status":  "error",
+	// 		"message": "invalid request body",
+	// 		"error":   err.Error(),
+	// 	})
+	// }
 
-	if strings.TrimSpace(body.RefID) == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"status":  "error",
-			"message": "missing ref_id in callback body",
-		})
-	}
+	// if strings.TrimSpace(body.RefID) == "" {
+	// 	return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+	// 		"status":  "error",
+	// 		"message": "missing ref_id in callback body",
+	// 	})
+	// }
 
-	updateData := map[string]interface{}{
-		"status": body.Status,
-	}
+	// updateData := map[string]interface{}{
+	// 	"status": body.Status,
+	// }
 
-	// ⚡ Hanya PLN yang isi stroom_token
-	if strings.Contains(strings.ToLower(body.ProductCode), "pln") {
-		parts := strings.Split(body.SN, "/")
-		if len(parts) > 0 {
-			updateData["stroom_token"] = strings.TrimSpace(parts[0])
-		}
-	} else {
-		// Non-PLN → kosongkan stroom_token
-		updateData["stroom_token"] = ""
-	}
+	// // ⚡ Hanya PLN yang isi stroom_token
+	// if strings.Contains(strings.ToLower(body.ProductCode), "pln") {
+	// 	parts := strings.Split(body.SN, "/")
+	// 	if len(parts) > 0 {
+	// 		updateData["stroom_token"] = strings.TrimSpace(parts[0])
+	// 	}
+	// } else {
+	// 	// Non-PLN → kosongkan stroom_token
+	// 	updateData["stroom_token"] = ""
+	// }
 
-	// Update ke bodybase berdasarkan RefID
-	result := configs.DB.Model(&models.HistoryModel{}).
-		Where("ref_id = ?", body.RefID).
-		Updates(updateData)
+	// // Update ke bodybase berdasarkan RefID
+	// result := configs.DB.Model(&models.HistoryModel{}).
+	// 	Where("ref_id = ?", body.RefID).
+	// 	Updates(updateData)
 
-	if result.Error != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"status":  "error",
-			"message": "failed to update history",
-			"error":   result.Error.Error(),
-		})
-	}
+	// if result.Error != nil {
+	// 	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+	// 		"status":  "error",
+	// 		"message": "failed to update history",
+	// 		"error":   result.Error.Error(),
+	// 	})
+	// }
 
-	if result.RowsAffected == 0 {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"status":  "error",
-			"message": "no record updated (possibly invalid ref_id)",
-		})
-	}
+	// if result.RowsAffected == 0 {
+	// 	return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+	// 		"status":  "error",
+	// 		"message": "no record updated (possibly invalid ref_id)",
+	// 	})
+	// }
 
-	return c.JSON(fiber.Map{
-		"status":  "success",
-		"message": "callback processed",
-	})
+	// return c.JSON(fiber.Map{
+	// 	"status":  "success",
+	// 	"message": "callback processed",
+	// })
+	fmt.Println("INI Berhasil di panggil")
 }
 
 func GetHistoryByRefID(c *fiber.Ctx) error {
