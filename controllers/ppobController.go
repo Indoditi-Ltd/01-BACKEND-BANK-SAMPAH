@@ -683,17 +683,11 @@ func CallbackPrepaid(c *fiber.Ctx) error {
 	data := body.Data
 
 	stroomToken := data.SN
-	customerName := ""
 
-	// ⚡ Khusus produk PLN — potong SN jadi token & nama pelanggan
-	if strings.Contains(strings.ToLower(data.ProductCode), "pln") {
-		parts := strings.Split(data.SN, "/")
-		if len(parts) > 0 {
-			stroomToken = strings.TrimSpace(parts[0])
-		}
-		if len(parts) > 1 {
-			customerName = strings.TrimSpace(parts[1])
-		}
+	// ✂️ Pisahkan SN berdasarkan "/" (jika ada)
+	parts := strings.Split(data.SN, "/")
+	if len(parts) > 0 {
+		stroomToken = strings.TrimSpace(parts[0])
 	}
 
 	// Update ke database berdasarkan RefID
@@ -702,7 +696,6 @@ func CallbackPrepaid(c *fiber.Ctx) error {
 		Updates(map[string]interface{}{
 			"stroom_token": stroomToken,
 			"status":       fmt.Sprintf("%d", data.Status),
-			"product_name": customerName, // hanya untuk PLN, aman jika kosong
 		}).Error
 
 	if err != nil {
@@ -718,6 +711,7 @@ func CallbackPrepaid(c *fiber.Ctx) error {
 		"message": "callback processed",
 	})
 }
+
 
 func GetHistoryByRefID(c *fiber.Ctx) error {
 	// Ambil ref_id dari query parameter
