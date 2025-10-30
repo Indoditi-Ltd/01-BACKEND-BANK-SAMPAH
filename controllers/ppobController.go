@@ -736,10 +736,28 @@ func TopupPrepaid(c *fiber.Ctx) error {
 // }
 
 func CallbackPrepaid(c *fiber.Ctx) error {
+	// Ambil body JSON mentah
+	body := make(map[string]interface{})
+
+	// Parse JSON dari request callback
+	if err := c.BodyParser(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"status":  "error",
+			"message": "invalid JSON body",
+			"error":   err.Error(),
+		})
+	}
+
+	// Tampilkan di console/log server
 	fmt.Println("✅ CallbackPrepaid berhasil dipanggil pada:", time.Now().Format("02-01-2006 15:04:05"))
+	fmt.Println("📦 Data JSON diterima:")
+	fmt.Printf("%+v\n", body)
+
+	// Kembalikan JSON yang sama ke pengirim sebagai respon
 	return c.JSON(fiber.Map{
 		"status":  "success",
-		"message": "CallbackPrepaid berhasil dipanggil",
+		"message": "Callback diterima dan ditampilkan",
+		"data":    body,
 	})
 }
 
