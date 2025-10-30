@@ -20,6 +20,7 @@ func SetupRoute(app *fiber.App) {
 	{
 		api.Post("/login", controllers.LoginC)
 		api.Post("/register-user", controllers.RegisterUser)
+		api.Post("/callback", controllers.CallbackPrepaid)
 
 		app.Use(middleware.RequireAuth)
 
@@ -76,7 +77,7 @@ func SetupRoute(app *fiber.App) {
 			ppob.Get("/postpaid/:type?", controllers.GetListPostpaid)
 			ppob.Get("/postpaid/:type/:province", controllers.GetListPostpaid)
 			ppob.Post("/margin", controllers.CreateMargin)
-			ppob.Post("/callback", controllers.CallbackPrepaid)
+			
 			ppob.Get("/history", controllers.GetHistoryByRefID)
 		}
 
