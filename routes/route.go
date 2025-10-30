@@ -77,7 +77,7 @@ func SetupRoute(app *fiber.App) {
 			ppob.Get("/postpaid/:type/:province", controllers.GetListPostpaid)
 			ppob.Post("/margin", controllers.CreateMargin)
 			ppob.Post("/callback", controllers.CallbackPrepaid)
-			ppob.Get("/api/history", controllers.GetHistoryByRefID)
+			ppob.Get("/history", controllers.GetHistoryByRefID)
 		}
 
 		region := api.Group("/region")
