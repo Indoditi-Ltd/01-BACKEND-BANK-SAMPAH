@@ -570,10 +570,10 @@ func TopupPrepaid(c *fiber.Ctx) error {
 		UserID        uint   `json:"user_id"`
 		ProductCode   string `json:"product_code"`
 		ProductName   string `json:"product_name"`
-		ProductPrice  int64  `json:"product_price"`
+		ProductPrice  string  `json:"product_price"`
 		ProductType   string `json:"product_type"`
 		UserNumber    string `json:"user_number"`
-		TotalPrice    int64  `json:"total_price"`
+		TotalPrice    string  `json:"total_price"`
 		StroomToken   string `json:"stroom_token"`
 		BillingPeriod string `json:"billing_period"`
 		Year          string `json:"year"`

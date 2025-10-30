@@ -15,10 +15,10 @@ type HistoryModel struct {
 	User          User           `json:"user" gorm:"foreignKey:UserID"`
 	RefID         string         `json:"ref_id" gorm:"index"`
 	ProductName   string         `json:"product_name" gorm:"type:varchar(255)"`
-	ProductPrice  int64          `json:"product_price"`
+	ProductPrice  string          `json:"product_price"`
 	ProductType   string         `json:"product_type"`
 	UserNumber    string         `json:"user_number"`
-	TotalPrice    int64          `json:"total_price"`
+	TotalPrice    string          `json:"total_price"`
 	StroomToken   string         `json:"stroom_token"`
 	BillingPeriod string         `json:"billing_period"`
 	Year          string         `json:"year"`
