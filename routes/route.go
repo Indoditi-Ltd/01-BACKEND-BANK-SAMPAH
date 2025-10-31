@@ -74,6 +74,7 @@ func SetupRoute(app *fiber.App) {
 		{
 			ppob.Get("/prepaid/:type?", controllers.GetListPrepaid)
 			ppob.Post("/prepaid/topup", controllers.TopupPrepaid)
+			ppob.Post("/postpaid/inquiry", controllers.PostpaidInquiry)
 			ppob.Get("/postpaid/:type?", controllers.GetListPostpaid)
 			ppob.Get("/postpaid/:type/:province", controllers.GetListPostpaid)
 			ppob.Post("/margin", controllers.CreateMargin)

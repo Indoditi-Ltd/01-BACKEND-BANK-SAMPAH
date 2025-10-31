@@ -71,7 +71,6 @@ type PLNCustomerData struct {
 	RC           string `json:"rc"`
 }
 
-
 // ==========================
 // 4️⃣ Response Inquiry OVO
 // ==========================
@@ -87,7 +86,6 @@ type OVOCustomerData struct {
 	RC         string `json:"rc"`
 }
 
-
 // ==========================
 // 6️⃣ Response Inquiry Pulsa
 // ==========================
@@ -100,7 +98,6 @@ type PulsaInquiryData struct {
 	Message  string `json:"message"`
 	RC       string `json:"rc"`
 }
-
 
 // ==========================
 // 5️⃣ Response Gabungan (Inquiry + Pricelist)
@@ -168,3 +165,9 @@ type ProductListPrepaid struct {
 	IconURL            string `json:"icon_url"`
 }
 
+type ExternalInquiryRequest struct {
+	Code  string `json:"code"`
+	Hp    string `json:"hp"`
+	RefID string `json:"ref_id"`
+	Month string `json:"month"`
+}
