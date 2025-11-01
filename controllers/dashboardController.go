@@ -4,8 +4,6 @@ import (
 	"backend-mulungs/configs"
 	"backend-mulungs/helpers"
 	"backend-mulungs/models"
-	"fmt"
-	"strings"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -81,7 +79,7 @@ func DashboardController(c *fiber.Ctx) error {
 		activity := map[string]interface{}{
 			"no":        i + 1,
 			"name_user": transaction.User.Name,
-			"total":     formatCurrency(transaction.Balance),
+			"total":     helpers.FormatCurrency(transaction.Balance),
 			"tanggal":   formattedDate,
 			"email":     transaction.User.Email,
 			"status":    statusDisplay,
@@ -102,36 +100,3 @@ func DashboardController(c *fiber.Ctx) error {
 	return helpers.Response(c, fiber.StatusOK, "success", "Dashboard data fetched", data, nil)
 }
 
-// Helper function untuk format currency
-func formatCurrency(amount int) string {
-	// Konversi ke float untuk formatting
-	floatAmount := float64(amount)
-
-	// Format dengan separator ribuan dan 2 digit desimal
-	str := fmt.Sprintf("Rp %.2f", floatAmount)
-
-	// Tambahkan separator ribuan
-	parts := strings.Split(str, ".")
-	integerPart := parts[0]
-	decimalPart := ""
-	if len(parts) > 1 {
-		decimalPart = "." + parts[1]
-	}
-
-	// Format ribuan (skip "Rp " di depan)
-	rpPrefix := "Rp "
-	numberPart := integerPart[len(rpPrefix):]
-
-	var formattedInteger string
-	count := 0
-	// Balik string untuk memudahkan penambahan titik
-	for i := len(numberPart) - 1; i >= 0; i-- {
-		if count > 0 && count%3 == 0 {
-			formattedInteger = "." + formattedInteger
-		}
-		formattedInteger = string(numberPart[i]) + formattedInteger
-		count++
-	}
-
-	return rpPrefix + formattedInteger + decimalPart
-}
