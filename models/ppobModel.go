@@ -171,3 +171,7 @@ type ExternalInquiryRequest struct {
 	RefID string `json:"ref_id"`
 	Month string `json:"month"`
 }
+
+type ExternalPaymentRequest struct {
+	TrID  string `json:"tr_id"`
+}

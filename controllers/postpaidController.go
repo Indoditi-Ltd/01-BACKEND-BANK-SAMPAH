@@ -125,3 +125,42 @@ func PostpaidInquiry(c *fiber.Ctx) error {
 	// Return hasil inquiry dari API langsung ke client
 	return helpers.Response(c, 200, "Success", "Success Inquiry", result["data"], nil)
 }
+
+func PaymentPostpaid(c *fiber.Ctx) error {
+	var reqBody models.ExternalPaymentRequest
+
+	if err := c.BodyParser(&reqBody); err != nil {
+		return helpers.Response(c, 400, "Failed", "Invalid request body", nil, nil)
+	}
+
+	username := os.Getenv("IDENTITY")
+	sign := helpers.MakeSignPricelist(reqBody.TrID) // buat tanda tangan sesuai format API kamu
+	if username == "" || sign == "" {
+		return helpers.Response(c, 400, "Failed", "Username or sign is Empty", nil, nil)
+	}
+	// Siapkan body request ke IAK
+	payload := map[string]any{
+		"commands": "pay-pasca",
+		"username": username,
+		"tr_id":    reqBody.TrID,
+		"sign":     sign,
+	}
+	jsonBody, _ := json.Marshal(payload)
+	url := "https://testpostpaid.mobilepulsa.net/api/v1/bill/check"
+	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonBody))
+
+	if err != nil {
+		return helpers.Response(c, 400, "Failed", "Failed decode response", nil, nil)
+	}
+
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+
+	var result map[string]interface{}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return helpers.Response(c, 400, "Failed", "Failed decode response", nil, nil)
+	}
+
+	return helpers.Response(c, 200, "Success", "Success Inquiry", result["data"], nil)
+}
