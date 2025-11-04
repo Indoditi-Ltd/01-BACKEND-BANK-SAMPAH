@@ -38,6 +38,7 @@ func SetupRoute(app *fiber.App) {
 		api.Get("/list-topup", controllers.TransactionAllTopUp)
 		api.Get("/list-withdraw", controllers.TransactionAllWithdraw)
 		api.Get("/roles", controllers.ListRoleC)
+		api.Get("/division", controllers.DivisiUserController)
 
 		// for role parent bank, child bank, mitra, end user
 		api.Post("/create-topup", controllers.TransactionCreateTopUp)
@@ -124,6 +125,14 @@ func SetupRoute(app *fiber.App) {
 			userGroup.Get("/:id", controllers.GetUserByID)       // Get user by ID
 			userGroup.Put("/:id", controllers.UpdateUser)        // Update user
 			userGroup.Delete("/:id", controllers.DeleteUser)     // Delete user
+		}
+
+		marketings := api.Group("/marketing")
+		{
+			marketings.Get("/", controllers.GetMarketingList)      // Get dengan filter
+			marketings.Post("/", controllers.CreateMarketing)      // Create new
+			marketings.Put("/:id", controllers.UpdateMarketing)    // Update
+			marketings.Delete("/:id", controllers.DeleteMarketing) // Delete
 		}
 	}
 }
