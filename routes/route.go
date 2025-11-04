@@ -25,11 +25,14 @@ func SetupRoute(app *fiber.App) {
 
 		app.Use(middleware.RequireAuth)
 
-		api.Get("/profile", func(c *fiber.Ctx) error {
-			return c.JSON(fiber.Map{
-				"message": "Success",
-			})
-		})
+		// api.Get("/profile", func(c *fiber.Ctx) error {
+		// 	return c.JSON(fiber.Map{
+		// 		"message": "Success",
+		// 	})
+		// })
+
+		// Scan Barcode User
+		api.Post("/scan-user", controllers.ScanBarcodeUser)
 
 		// for website
 		api.Get("/list-topup", controllers.TransactionAllTopUp)
@@ -110,6 +113,17 @@ func SetupRoute(app *fiber.App) {
 		dash := api.Group("/dashboard")
 		{
 			dash.Get("/admin", controllers.DashboardController)
+		}
+
+		userGroup := api.Group("/parent-bank-users")
+		{
+			userGroup.Get("/", controllers.GetUsersParentBank)      // Get all users with filters
+			userGroup.Get("/reset-filter", controllers.ResetFilter) // Reset filter
+			userGroup.Get("/list-parent", controllers.GetParentBanksDropdown)
+			userGroup.Post("/", controllers.CreateUserBankInduk) // Create user bank induk
+			userGroup.Get("/:id", controllers.GetUserByID)       // Get user by ID
+			userGroup.Put("/:id", controllers.UpdateUser)        // Update user
+			userGroup.Delete("/:id", controllers.DeleteUser)     // Delete user
 		}
 	}
 }

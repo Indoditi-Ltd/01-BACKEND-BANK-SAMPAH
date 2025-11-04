@@ -26,4 +26,8 @@ type User struct {
 	ParentBankID *uint          `json:"-"`
 	ParentBank   *ParentBank    `json:"parent_bank" gorm:"foreignKey:ParentBankID"`
 	Norek        *uint          `json:"norek" gorm:"type:char(50)"`
+	Status       string         `json:"status" gorm:"type:enum('active','inactive');default:'active'"` // Field baru
+	Province     string         `json:"province" gorm:"type:varchar(100)"`                             // Field baru
+	District     string         `json:"district" gorm:"type:varchar(100)"`                             // Field baru
+	Balance      int            `json:"balance" gorm:"default:0"`
 }

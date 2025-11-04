@@ -45,3 +45,4 @@ func RegisterUser(c *fiber.Ctx) error {
 	}
 	return helpers.Response(c, 200, "Success", "Admin create successfully", endUser, nil)
 }
+
