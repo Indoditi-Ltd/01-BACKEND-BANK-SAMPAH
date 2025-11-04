@@ -18,7 +18,7 @@ func RequireAuth(c *fiber.Ctx) error {
 
 	// cek token valid
 	tokenString := strings.TrimPrefix(authHeader, "Bearer ")
-	_, err := jwt.Parse(tokenString, func(t *jwt.Token) (interface{}, error) {
+	_, err := jwt.Parse(tokenString, func(t *jwt.Token) (any, error) {
 		return []byte(os.Getenv("SECRET")), nil
 	})
 	if err != nil {

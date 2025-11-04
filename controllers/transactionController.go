@@ -4,9 +4,12 @@ import (
 	"backend-mulungs/configs"
 	"backend-mulungs/helpers"
 	"backend-mulungs/models"
+	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"gorm.io/gorm"
 )
 
 func TransactionCreateTopUp(c *fiber.Ctx) error {
@@ -132,13 +135,13 @@ func TransactionAllTopUp(c *fiber.Ctx) error {
 	// Apply search filter (nama/email user) - CARA AMAN
 	if req.Search != "" {
 		searchPattern := "%" + req.Search + "%"
-		
+
 		// Cari user yang sesuai dengan search pattern
 		var userIDs []uint
 		configs.DB.Model(&models.User{}).
 			Where("name ILIKE ? OR email ILIKE ?", searchPattern, searchPattern).
 			Pluck("id", &userIDs)
-		
+
 		// Jika ada user yang ditemukan, filter transaksi berdasarkan user_id
 		if len(userIDs) > 0 {
 			query = query.Where("user_id IN (?)", userIDs)
@@ -294,4 +297,183 @@ func TransactionAllWithdraw(c *fiber.Ctx) error {
 	}
 
 	return helpers.Response(c, 200, "Success", "Data found", data, nil)
+}
+
+// TransactionDetailResponse struct untuk response JSON
+type TransactionDetailResponse struct {
+	NamaUser   string `json:"nama_user"`
+	NoRekening string `json:"no_rekening"`
+	Email      string `json:"email"`
+	Tanggal    string `json:"tanggal"`
+	TotalTopUp string `json:"total_top_up"`
+}
+
+// GetTransactionDetailHandler menampilkan detail transaksi transfer/topup
+func GetTransactionDetailHandler(c *fiber.Ctx) error {
+	// Ambil ID dari parameter URL
+	idParam := c.Params("id")
+	if idParam == "" {
+		return c.Status(400).JSON(fiber.Map{
+			"error": "ID transaksi tidak ditemukan",
+		})
+	}
+
+	id, err := strconv.ParseUint(idParam, 10, 64)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{
+			"error": "ID transaksi tidak valid",
+		})
+	}
+
+	// Inisialisasi variabel untuk menyimpan data
+	var transaction models.Transaction
+
+	// Query ke database dengan preload User
+	err = configs.DB.Preload("User").First(&transaction, id).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return c.Status(404).JSON(fiber.Map{
+				"error": "Transaksi tidak ditemukan",
+			})
+		}
+		return c.Status(500).JSON(fiber.Map{
+			"error": "Gagal mengambil data transaksi",
+		})
+	}
+
+	// Format tanggal
+	tanggal := transaction.CreatedAt.Format("02 January 2006")
+
+	// Format total top up dengan Rp dan titik ribuan
+	totalTopUp := fmt.Sprintf("Rp %s", helpers.FormatCurrencyTransaction(transaction.Balance))
+
+	// Jika ingin ambil No Rekening dari ChildBank (lebih kompleks), bisa tambahkan preload
+	// Tapi karena di model User sudah ada `Norek`, kita pakai itu dulu
+	noRekening := ""
+	if transaction.User.Norek != nil {
+		noRekening = fmt.Sprintf("%d", *transaction.User.Norek)
+	} else {
+		noRekening = "Tidak tersedia"
+	}
+
+	// Siapkan response
+	response := TransactionDetailResponse{
+		NamaUser:   transaction.User.Name,
+		NoRekening: noRekening,
+		Email:      transaction.User.Email,
+		Tanggal:    tanggal,
+		TotalTopUp: totalTopUp,
+	}
+
+	return c.JSON(response)
+}
+
+// ConfirmTransactionHandler mengubah status transaksi menjadi "confirm"
+func ConfirmTransactionHandler(c *fiber.Ctx) error {
+	// Ambil ID dari parameter URL
+	idParam := c.Params("id")
+	if idParam == "" {
+		return c.Status(400).JSON(fiber.Map{
+			"error": "ID transaksi tidak ditemukan",
+		})
+	}
+
+	id, err := strconv.ParseUint(idParam, 10, 64)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{
+			"error": "ID transaksi tidak valid",
+		})
+	}
+
+	// Cari transaksi
+	var transaction models.Transaction
+	err = configs.DB.Preload("User").First(&transaction, id).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return c.Status(404).JSON(fiber.Map{
+				"error": "Transaksi tidak ditemukan",
+			})
+		}
+		return c.Status(500).JSON(fiber.Map{
+			"error": "Gagal mengambil data transaksi",
+		})
+	}
+
+	// Validasi: hanya bisa dikonfirmasi jika status masih "pending"
+	if transaction.Status != "pending" {
+		return c.Status(400).JSON(fiber.Map{
+			"error": "Transaksi sudah tidak dalam status 'pending'",
+		})
+	}
+
+	// Update status dan admin ID
+	transaction.Status = "confirm"
+
+	// Simpan perubahan
+	err = configs.DB.Save(&transaction).Error
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{
+			"error": "Gagal memperbarui status transaksi",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"message": "Transaksi berhasil dikonfirmasi",
+		"data":    transaction,
+	})
+}
+
+// RejectTransactionHandler mengubah status transaksi menjadi "reject"
+func RejectTransactionHandler(c *fiber.Ctx) error {
+	// Ambil ID dari parameter URL
+	idParam := c.Params("id")
+	if idParam == "" {
+		return c.Status(400).JSON(fiber.Map{
+			"error": "ID transaksi tidak ditemukan",
+		})
+	}
+
+	id, err := strconv.ParseUint(idParam, 10, 64)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{
+			"error": "ID transaksi tidak valid",
+		})
+	}
+
+	// Cari transaksi
+	var transaction models.Transaction
+	err = configs.DB.Preload("User").First(&transaction, id).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return c.Status(404).JSON(fiber.Map{
+				"error": "Transaksi tidak ditemukan",
+			})
+		}
+		return c.Status(500).JSON(fiber.Map{
+			"error": "Gagal mengambil data transaksi",
+		})
+	}
+
+	// Validasi: hanya bisa direject jika status masih "pending"
+	if transaction.Status != "pending" {
+		return c.Status(400).JSON(fiber.Map{
+			"error": "Transaksi sudah tidak dalam status 'pending'",
+		})
+	}
+
+	// Update status dan admin ID
+	transaction.Status = "reject"
+
+	// Simpan perubahan
+	err = configs.DB.Save(&transaction).Error
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{
+			"error": "Gagal memperbarui status transaksi",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"message": "Transaksi berhasil ditolak",
+		"data":    transaction,
+	})
 }

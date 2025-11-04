@@ -5,6 +5,7 @@ import (
 	"backend-mulungs/initializers"
 	"backend-mulungs/routes"
 	"backend-mulungs/seeders"
+	"log"
 	"os"
 
 	"github.com/gofiber/fiber/v2"
@@ -26,6 +27,11 @@ func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "3000"
+	}
+
+	// Initialize S3/NEO Object Storage
+	if err := configs.InitS3(); err != nil {
+		log.Fatal("Failed to initialize S3:", err)
 	}
 
 	app := fiber.New()

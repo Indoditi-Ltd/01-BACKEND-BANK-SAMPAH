@@ -38,3 +38,33 @@ func FormatCurrency(amount int) string {
 
 	return rpPrefix + formattedInteger + decimalPart
 }
+
+// Fungsi helper untuk format angka menjadi format uang (misal: 200000 → 200.000)
+func FormatCurrencyTransaction(amount int) string {
+	if amount == 0 {
+		return "0"
+	}
+
+	negative := amount < 0
+	if negative {
+		amount = -amount
+	}
+
+	str := fmt.Sprintf("%d", amount)
+	length := len(str)
+
+	// Tambahkan titik setiap 3 digit dari belakang
+	var result string
+	for i := 0; i < length; i++ {
+		if i > 0 && (length-i)%3 == 0 {
+			result += "."
+		}
+		result += string(str[i])
+	}
+
+	if negative {
+		result = "-" + result
+	}
+
+	return result
+}

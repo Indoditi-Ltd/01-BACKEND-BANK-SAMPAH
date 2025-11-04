@@ -21,6 +21,7 @@ func SetupRoute(app *fiber.App) {
 		api.Post("/login", controllers.LoginC)
 		api.Post("/register-user", controllers.RegisterUser)
 		api.Post("/callback", controllers.CallbackPrepaid)
+		api.Get("/testBucket", controllers.TestNEOConnection)
 
 		app.Use(middleware.RequireAuth)
 
@@ -38,7 +39,22 @@ func SetupRoute(app *fiber.App) {
 		// for role parent bank, child bank, mitra, end user
 		api.Post("/create-topup", controllers.TransactionCreateTopUp)
 		api.Post("/create-withdraw", controllers.TransactionCreateWithdraw)
-		
+
+		transaction := api.Group("/transactions")
+		{
+			transaction.Get("/:id", controllers.GetTransactionDetailHandler)
+			transaction.Put("/:id/confirm", controllers.ConfirmTransactionHandler)
+			transaction.Put("/:id/reject", controllers.RejectTransactionHandler)
+		}
+
+		profileGroup := api.Group("/profile")
+		{
+			profileGroup.Get("/:id", controllers.GetAdminProfile)
+			profileGroup.Put("/:id", controllers.UpdateAdminProfile)
+			profileGroup.Post("/:id/photo", controllers.UploadProfilePhoto)
+			profileGroup.Delete("/:id/photo", controllers.DeleteProfilePhoto)
+		}
+
 		parentBank := api.Group("/parent-bank")
 		{
 			// Website Admin
