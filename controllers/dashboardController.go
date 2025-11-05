@@ -59,7 +59,7 @@ func DashboardController(c *fiber.Ctx) error {
 	}
 
 	// Format response untuk latest activity
-	var latestActivity []map[string]interface{}
+	var latestActivity []map[string]any
 
 	for i, transaction := range latestTransactions {
 		// Format status dengan ikon

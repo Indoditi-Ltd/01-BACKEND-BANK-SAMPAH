@@ -199,9 +199,9 @@ func GetMarketingList(c *fiber.Ctx) error {
 	}
 
 	// Format response
-	var formattedMarketing []map[string]interface{}
+	var formattedMarketing []map[string]any
 	for i, item := range marketing {
-		formattedMarketing = append(formattedMarketing, map[string]interface{}{
+		formattedMarketing = append(formattedMarketing, map[string]any{
 			"no":          i + 1 + offset,
 			"id":          item.Id,
 			"image":       item.Image,
@@ -216,14 +216,14 @@ func GetMarketingList(c *fiber.Ctx) error {
 	}
 
 	// Format meta data
-	meta := map[string]interface{}{
+	meta := map[string]any{
 		"limit": query.Limit,
 		"page":  query.Page,
 		"pages": totalPages,
 		"total": total,
 	}
 
-	response := map[string]interface{}{
+	response := map[string]any{
 		"marketing": formattedMarketing,
 		"meta":      meta,
 	}
