@@ -76,7 +76,7 @@ func DashboardController(c *fiber.Ctx) error {
 		// Format tanggal
 		formattedDate := transaction.CreatedAt.Format("02-01-2006")
 
-		activity := map[string]interface{}{
+		activity := map[string]any{
 			"no":        i + 1,
 			"name_user": transaction.User.Name,
 			"total":     helpers.FormatCurrency(transaction.Balance),
