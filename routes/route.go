@@ -39,6 +39,7 @@ func SetupRoute(app *fiber.App) {
 		api.Get("/list-withdraw", controllers.TransactionAllWithdraw)
 		api.Get("/roles", controllers.ListRoleC)
 		api.Get("/division", controllers.DivisiUserController)
+		api.Put("/:id/change-password", controllers.ChangePassword)
 
 		// for role parent bank, child bank, mitra, end user
 		api.Post("/create-topup", controllers.TransactionCreateTopUp)
@@ -53,10 +54,10 @@ func SetupRoute(app *fiber.App) {
 
 		profileGroup := api.Group("/profile")
 		{
-			profileGroup.Get("/:id", controllers.GetAdminProfile)
-			profileGroup.Put("/:id", controllers.UpdateAdminProfile)
-			profileGroup.Post("/:id/photo", controllers.UploadProfilePhoto)
-			profileGroup.Delete("/:id/photo", controllers.DeleteProfilePhoto)
+			profileGroup.Get("/", controllers.GetAdminProfile)
+			profileGroup.Put("/", controllers.UpdateAdminProfile)
+			profileGroup.Post("/photo", controllers.UploadProfilePhoto)
+			profileGroup.Delete("/photo", controllers.DeleteProfilePhoto)
 		}
 
 		parentBank := api.Group("/parent-bank")
@@ -133,6 +134,15 @@ func SetupRoute(app *fiber.App) {
 			marketings.Post("/", controllers.CreateMarketing)      // Create new
 			marketings.Put("/:id", controllers.UpdateMarketing)    // Update
 			marketings.Delete("/:id", controllers.DeleteMarketing) // Delete
+		}
+
+		wasteGroup := api.Group("/waste")
+		{
+			wasteGroup.Get("/total", controllers.GetTotalWaste)                // Get total weight
+			wasteGroup.Get("/products", controllers.GetProductWasteList)       // Get list dengan filter
+			wasteGroup.Post("/products", controllers.CreateProductWaste)       // Create new
+			wasteGroup.Put("/products/:id", controllers.UpdateProductWaste)    // Update
+			wasteGroup.Delete("/products/:id", controllers.DeleteProductWaste) // Delete
 		}
 	}
 }

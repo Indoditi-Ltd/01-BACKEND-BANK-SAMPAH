@@ -6,20 +6,18 @@ import (
 	"backend-mulungs/models"
 	"fmt"
 	"path/filepath"
-	"strconv"
+	// "strconv"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
 )
 
-// GetAdminProfile - Get admin profile by ID
+// GetAdminProfile - Get logged in admin profile
 func GetAdminProfile(c *fiber.Ctx) error {
-	userID := c.Params("id")
-
-	// Convert userID to uint
-	id, err := strconv.ParseUint(userID, 10, 32)
+	// Get user ID from JWT token
+	userID, err := helpers.ExtractUserID(c)
 	if err != nil {
-		return helpers.Response(c, 400, "Failed", "Invalid user ID", nil, nil)
+		return helpers.Response(c, 401, "Failed", "Unauthorized: "+err.Error(), nil, nil)
 	}
 
 	var user models.User
@@ -28,7 +26,7 @@ func GetAdminProfile(c *fiber.Ctx) error {
 		Preload("Role").
 		Preload("Plan").
 		Preload("ParentBank").
-		First(&user, uint(id)).Error; err != nil {
+		First(&user, userID).Error; err != nil {
 		return helpers.Response(c, 404, "Failed", "User not found", nil, nil)
 	}
 
@@ -54,7 +52,10 @@ func GetAdminProfile(c *fiber.Ctx) error {
 
 // UpdateAdminProfile - Update admin profile
 func UpdateAdminProfile(c *fiber.Ctx) error {
-	userID := c.Params("id")
+	userID, err := helpers.ExtractUserID(c)
+	if err != nil {
+		return helpers.Response(c, 401, "Failed", "Unauthorized: "+err.Error(), nil, nil)
+	}
 
 	// Parse form data
 	var body struct {
@@ -69,14 +70,14 @@ func UpdateAdminProfile(c *fiber.Ctx) error {
 	}
 
 	// Convert userID to uint
-	id, err := strconv.ParseUint(userID, 10, 32)
-	if err != nil {
-		return helpers.Response(c, 400, "Failed", "Invalid user ID", nil, nil)
-	}
+	// id, err := strconv.ParseUint(userID, 10, 32)
+	// if err != nil {
+	// 	return helpers.Response(c, 400, "Failed", "Invalid user ID", nil, nil)
+	// }
 
 	// Check if user exists
 	var user models.User
-	if err := configs.DB.First(&user, uint(id)).Error; err != nil {
+	if err := configs.DB.First(&user, uint(userID)).Error; err != nil {
 		return helpers.Response(c, 404, "Failed", "User not found", nil, nil)
 	}
 
@@ -99,7 +100,7 @@ func UpdateAdminProfile(c *fiber.Ctx) error {
 
 		// Upload new photo to S3
 		s3Service := helpers.NewS3Service()
-		photoURL, err = s3Service.UploadFile(file, uint(id), "admin-profiles")
+		photoURL, err = s3Service.UploadFile(file, uint(userID), "admin-profiles")
 		if err != nil {
 			return helpers.Response(c, 500, "Failed", "Failed to upload photo", nil, nil)
 		}
@@ -182,9 +183,10 @@ func UpdateAdminProfile(c *fiber.Ctx) error {
 
 // UploadProfilePhoto - Upload only profile photo (Debug Version)
 func UploadProfilePhoto(c *fiber.Ctx) error {
-	userID := c.Params("id")
-	fmt.Printf("Starting photo upload for user ID: %s\n", userID)
-
+	userID, err := helpers.ExtractUserID(c)
+	if err != nil {
+		return helpers.Response(c, 401, "Failed", "Unauthorized: "+err.Error(), nil, nil)
+	}
 	// Parse form file
 	file, err := c.FormFile("photo")
 	if err != nil {
@@ -216,16 +218,16 @@ func UploadProfilePhoto(c *fiber.Ctx) error {
 	fmt.Printf("File type validated: %s\n", ext)
 
 	// Convert userID to uint
-	id, err := strconv.ParseUint(userID, 10, 32)
-	if err != nil {
-		fmt.Printf("Invalid user ID: %s\n", userID)
-		return helpers.Response(c, 400, "Failed", "Invalid user ID", nil, nil)
-	}
+	// id, err := strconv.ParseUint(userID, 10, 32)
+	// if err != nil {
+	// 	fmt.Printf("Invalid user ID: %s\n", userID)
+	// 	return helpers.Response(c, 400, "Failed", "Invalid user ID", nil, nil)
+	// }
 
 	// Get current user data to delete old photo
 	var user models.User
-	if err := configs.DB.First(&user, uint(id)).Error; err != nil {
-		fmt.Printf("User not found: %d\n", uint(id))
+	if err := configs.DB.First(&user, uint(userID)).Error; err != nil {
+		fmt.Printf("User not found: %d\n", uint(userID))
 		return helpers.Response(c, 404, "Failed", "User not found", nil, nil)
 	}
 	fmt.Printf("User found: %s\n", user.Name)
@@ -236,7 +238,7 @@ func UploadProfilePhoto(c *fiber.Ctx) error {
 
 	// Upload to S3
 	fmt.Printf("Starting S3 upload...\n")
-	photoURL, err := s3Service.UploadFile(file, uint(id), "profiles")
+	photoURL, err := s3Service.UploadFile(file, uint(userID), "profiles")
 	if err != nil {
 		fmt.Printf("S3 upload failed: %v\n", err)
 		// Cek kredensial dan konfigurasi S3
@@ -280,7 +282,10 @@ func UploadProfilePhoto(c *fiber.Ctx) error {
 
 // DeleteProfilePhoto - Delete profile photo
 func DeleteProfilePhoto(c *fiber.Ctx) error {
-	userID := c.Params("id")
+	userID, err := helpers.ExtractUserID(c)
+	if err != nil {
+		return helpers.Response(c, 401, "Failed", "Unauthorized: "+err.Error(), nil, nil)
+	}
 
 	var user models.User
 	if err := configs.DB.First(&user, userID).Error; err != nil {
