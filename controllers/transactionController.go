@@ -147,9 +147,9 @@ func TransactionAllTopUp(c *fiber.Ctx) error {
 			query = query.Where("user_id IN (?)", userIDs)
 		} else {
 			// Jika tidak ada user yang cocok, return empty result
-			data := map[string]interface{}{
+			data := map[string]any{
 				"transactions": []models.Transaction{},
-				"meta": map[string]interface{}{
+				"meta": map[string]any{
 					"page":  req.Page,
 					"limit": req.Limit,
 					"total": 0,
@@ -177,9 +177,9 @@ func TransactionAllTopUp(c *fiber.Ctx) error {
 	}
 
 	// Format response dengan meta di dalam data
-	data := map[string]interface{}{
+	data := map[string]any{
 		"transactions": transactions,
-		"meta": map[string]interface{}{
+		"meta": map[string]any{
 			"page":  req.Page,
 			"limit": req.Limit,
 			"total": total,
@@ -256,9 +256,9 @@ func TransactionAllWithdraw(c *fiber.Ctx) error {
 			query = query.Where("user_id IN (?)", userIDs)
 		} else {
 			// Jika tidak ada user yang cocok, return empty result
-			data := map[string]interface{}{
+			data := map[string]any{
 				"transactions": []models.Transaction{},
-				"meta": map[string]interface{}{
+				"meta": map[string]any{
 					"page":  req.Page,
 					"limit": req.Limit,
 					"total": 0,
@@ -286,9 +286,9 @@ func TransactionAllWithdraw(c *fiber.Ctx) error {
 	}
 
 	// Format response dengan meta di dalam data
-	data := map[string]interface{}{
+	data := map[string]any{
 		"transactions": transactions,
-		"meta": map[string]interface{}{
+		"meta": map[string]any{
 			"page":  req.Page,
 			"limit": req.Limit,
 			"total": total,

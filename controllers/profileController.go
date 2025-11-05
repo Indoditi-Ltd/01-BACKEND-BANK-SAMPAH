@@ -123,7 +123,7 @@ func UpdateAdminProfile(c *fiber.Ctx) error {
 	}
 
 	// Prepare update data
-	updateData := map[string]interface{}{
+	updateData := map[string]any{
 		"name":    body.Name,
 		"phone":   body.Phone,
 		"address": body.Address,

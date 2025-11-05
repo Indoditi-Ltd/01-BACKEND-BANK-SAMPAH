@@ -22,7 +22,7 @@ func GetTotalWaste(c *fiber.Ctx) error {
 		return helpers.Response(c, fiber.StatusInternalServerError, "Failed", "Failed to calculate total waste", nil, nil)
 	}
 
-	response := map[string]interface{}{
+	response := map[string]any{
 		"total_weight": totalWeight.Total,
 		"unit":         "kilogram",
 	}

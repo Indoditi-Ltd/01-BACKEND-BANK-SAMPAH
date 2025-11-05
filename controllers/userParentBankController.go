@@ -61,7 +61,7 @@ func GetUsersParentBank(c *fiber.Ctx) error {
 	}
 
 	// Flat response structure
-	response := map[string]interface{}{
+	response := map[string]any{
 		"users": users,
 		"page":  query.Page,
 		"limit": query.Limit,

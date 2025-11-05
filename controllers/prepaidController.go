@@ -579,7 +579,7 @@ func CallbackPrepaid(c *fiber.Ctx) error {
 	}
 
 	// Siapkan data yang akan diupdate
-	updateData := map[string]interface{}{
+	updateData := map[string]any{
 		"status": data.Message, // bisa pakai message agar lebih deskriptif (FAILED/SUCCESS)
 	}
 

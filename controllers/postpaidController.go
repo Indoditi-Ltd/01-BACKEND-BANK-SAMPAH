@@ -82,10 +82,10 @@ func GetListPostpaid(c *fiber.Ctx) error {
 	}
 
 	// --- Filter data ---
-	var filtered []map[string]interface{}
+	var filtered []map[string]any
 	
 	for _, item := range pasca {
-		itemMap, ok := item.(map[string]interface{})
+		itemMap, ok := item.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -103,13 +103,13 @@ func GetListPostpaid(c *fiber.Ctx) error {
 			// Jika query bpjs_type ada dan type adalah bpjs, filter lebih lanjut
 			if bpjsType != "" && strings.EqualFold(itemType, "bpjs") {
 				if bpjsType == "kesehatan" && isBPJSKesehatan(itemMap) {
-					filtered = append(filtered, map[string]interface{}{
+					filtered = append(filtered, map[string]any{
 						"code": itemCode,
 						"name": itemName,
 						"type": itemType,
 					})
 				} else if bpjsType == "ketenagakerjaan" && isBPJSKetenagakerjaan(itemMap) {
-					filtered = append(filtered, map[string]interface{}{
+					filtered = append(filtered, map[string]any{
 						"code": itemCode,
 						"name": itemName,
 						"type": itemType,
@@ -117,7 +117,7 @@ func GetListPostpaid(c *fiber.Ctx) error {
 				}
 			} else {
 				// Jika tidak ada filter bpjs_type, atau bukan type bpjs, tampilkan semua
-				filtered = append(filtered, map[string]interface{}{
+				filtered = append(filtered, map[string]any{
 					"code": itemCode,
 					"name": itemName,
 					"type": itemType,
