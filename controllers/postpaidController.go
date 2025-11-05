@@ -76,7 +76,7 @@ func GetListPostpaid(c *fiber.Ctx) error {
 		return helpers.Response(c, 400, "Failed", "Format data tidak valid", nil, nil)
 	}
 
-	pasca, ok := data["pasca"].([]interface{})
+	pasca, ok := data["pasca"].([]any)
 	if !ok {
 		return helpers.Response(c, 404, "Not Found", "Tidak ada data pasca ditemukan", nil, nil)
 	}
