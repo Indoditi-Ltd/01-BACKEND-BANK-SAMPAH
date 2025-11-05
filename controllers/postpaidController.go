@@ -60,7 +60,7 @@ func GetListPostpaid(c *fiber.Ctx) error {
 	}
 
 	// Decode response ke map[string]interface{} untuk handle struktur dinamis
-	var apiResponse map[string]interface{}
+	var apiResponse map[string]any
 	if err := json.Unmarshal(body, &apiResponse); err != nil {
 		return helpers.Response(c, 400, "Failed", "Gagal decode response API", nil, nil)
 	}
@@ -71,7 +71,7 @@ func GetListPostpaid(c *fiber.Ctx) error {
 	}
 
 	// Extract data pasca dari response
-	data, ok := apiResponse["data"].(map[string]interface{})
+	data, ok := apiResponse["data"].(map[string]any)
 	if !ok {
 		return helpers.Response(c, 400, "Failed", "Format data tidak valid", nil, nil)
 	}
