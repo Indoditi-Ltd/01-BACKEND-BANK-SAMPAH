@@ -42,7 +42,6 @@ func TransactionCreateTopUp(c *fiber.Ctx) error {
 
 	return helpers.Response(c, 200, "Success", "Transaction create successfully", transaction, nil)
 }
-
 func TransactionCreateWithdraw(c *fiber.Ctx) error {
 	var body struct {
 		UserID  uint   `json:"user_id"`
@@ -51,13 +50,41 @@ func TransactionCreateWithdraw(c *fiber.Ctx) error {
 	}
 
 	if err := c.BodyParser(&body); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"status":  "Failed",
-			"message": "Invalid request body",
-			"error":   err.Error(),
-		})
+		return helpers.Response(c, 400, "Failed", "Invalid request body", nil, nil)
 	}
 
+	// Mulai transaction database
+	tx := configs.DB.Begin()
+	if tx.Error != nil {
+		return helpers.Response(c, 500, "Failed", "Gagal memulai transaksi database", nil, nil)
+	}
+
+	// Cek saldo user dengan lock untuk menghindari race condition
+	var user models.User
+	err := tx.Set("gorm:query_option", "FOR UPDATE").First(&user, body.UserID).Error
+	if err != nil {
+		tx.Rollback()
+		if err == gorm.ErrRecordNotFound {
+			return helpers.Response(c, 404, "Failed", "User tidak ditemukan", nil, nil)
+		}
+		return helpers.Response(c, 500, "Failed", "Gagal mengambil data user", nil, nil)
+	}
+
+	// Validasi saldo mencukupi
+	if user.Balance < body.Balance {
+		tx.Rollback()
+		return helpers.Response(c, 400, "Failed", "Saldo tidak mencukupi", nil, nil)
+	}
+
+	// Kurangi saldo user
+	err = tx.Model(&models.User{}).Where("id = ?", body.UserID).
+		Update("balance", gorm.Expr("balance - ?", body.Balance)).Error
+	if err != nil {
+		tx.Rollback()
+		return helpers.Response(c, 500, "Failed", "Gagal mengurangi saldo user", nil, nil)
+	}
+
+	// Buat transaksi withdraw
 	transaction := models.Transaction{
 		UserID:  body.UserID,
 		Balance: body.Balance,
@@ -66,9 +93,19 @@ func TransactionCreateWithdraw(c *fiber.Ctx) error {
 		Type:    "withdraw",
 	}
 
-	if err := configs.DB.Create(&transaction).Error; err != nil {
-		return helpers.Response(c, 400, "Failed", "Failed to create transaction", nil, nil)
+	if err := tx.Create(&transaction).Error; err != nil {
+		tx.Rollback()
+		return helpers.Response(c, 500, "Failed", "Failed to create transaction", nil, nil)
 	}
+
+	// Commit transaction
+	if err := tx.Commit().Error; err != nil {
+		tx.Rollback()
+		return helpers.Response(c, 500, "Failed", "Gagal menyimpan transaksi", nil, nil)
+	}
+
+	// Reload transaksi dengan data user terbaru
+	configs.DB.Preload("User").First(&transaction, transaction.Id)
 
 	res := models.TransactionCreateResponse{
 		UserID:  transaction.UserID,
@@ -78,7 +115,7 @@ func TransactionCreateWithdraw(c *fiber.Ctx) error {
 		Desc:    transaction.Desc,
 	}
 
-	return helpers.Response(c, 200, "Success", "Transaction create successfully", res, nil)
+	return helpers.Response(c, 200, "Success", "Withdraw request created successfully", res, nil)
 }
 
 func TransactionAllTopUp(c *fiber.Ctx) error {
@@ -373,54 +410,80 @@ func ConfirmTransactionHandler(c *fiber.Ctx) error {
 	// Ambil ID dari parameter URL
 	idParam := c.Params("id")
 	if idParam == "" {
-		return c.Status(400).JSON(fiber.Map{
-			"error": "ID transaksi tidak ditemukan",
-		})
+		return helpers.Response(c, 400, "Failed", "ID transaksi tidak ditemukan", nil, nil)
 	}
 
 	id, err := strconv.ParseUint(idParam, 10, 64)
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{
-			"error": "ID transaksi tidak valid",
-		})
+		return helpers.Response(c, 400, "Failed", "ID transaksi tidak valid", nil, nil)
 	}
 
-	// Cari transaksi
+	// Mulai transaction database
+	tx := configs.DB.Begin()
+	if tx.Error != nil {
+		return helpers.Response(c, 500, "Failed", "Gagal memulai transaksi database", nil, nil)
+	}
+
+	// Cari transaksi dengan lock untuk menghindari race condition
 	var transaction models.Transaction
-	err = configs.DB.Preload("User").First(&transaction, id).Error
+	err = tx.Set("gorm:query_option", "FOR UPDATE").Preload("User").First(&transaction, id).Error
 	if err != nil {
+		tx.Rollback()
 		if err == gorm.ErrRecordNotFound {
-			return c.Status(404).JSON(fiber.Map{
-				"error": "Transaksi tidak ditemukan",
-			})
+			return helpers.Response(c, 404, "Failed", "Transaksi tidak ditemukan", nil, nil)
 		}
-		return c.Status(500).JSON(fiber.Map{
-			"error": "Gagal mengambil data transaksi",
-		})
+		return helpers.Response(c, 500, "Failed", "Gagal mengambil data transaksi", nil, nil)
 	}
 
 	// Validasi: hanya bisa dikonfirmasi jika status masih "pending"
 	if transaction.Status != "pending" {
-		return c.Status(400).JSON(fiber.Map{
-			"error": "Transaksi sudah tidak dalam status 'pending'",
-		})
+		tx.Rollback()
+		return helpers.Response(c, 400, "Failed", "Transaksi sudah tidak dalam status 'pending'", nil, nil)
 	}
 
-	// Update status dan admin ID
+	// Update status transaksi
 	transaction.Status = "confirm"
+	// Set admin ID jika diperlukan
+	// adminID, err := GetAdminIDFromContext(c)
+	// if err == nil {
+	// 	transaction.AdminID = &adminID
+	// }
 
-	// Simpan perubahan
-	err = configs.DB.Save(&transaction).Error
+	// Simpan perubahan transaksi
+	err = tx.Save(&transaction).Error
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{
-			"error": "Gagal memperbarui status transaksi",
-		})
+		tx.Rollback()
+		return helpers.Response(c, 500, "Failed", "Gagal memperbarui status transaksi", nil, nil)
 	}
 
-	return c.JSON(fiber.Map{
-		"message": "Transaksi berhasil dikonfirmasi",
-		"data":    transaction,
-	})
+	// Untuk topup: tambahkan balance user
+	if transaction.Type == "topup" {
+		err = tx.Model(&models.User{}).Where("id = ?", transaction.UserID).
+			Update("balance", gorm.Expr("balance + ?", transaction.Balance)).Error
+		if err != nil {
+			tx.Rollback()
+			return helpers.Response(c, 500, "Failed", "Gagal menambah balance user", nil, nil)
+		}
+	}
+	// Untuk withdraw: tidak perlu melakukan apa-apa karena saldo sudah dipotong saat create
+
+	// Commit transaction
+	if err := tx.Commit().Error; err != nil {
+		tx.Rollback()
+		return helpers.Response(c, 500, "Failed", "Gagal menyimpan perubahan", nil, nil)
+	}
+
+	// Reload transaksi dengan data terbaru
+	configs.DB.Preload("User").First(&transaction, id)
+
+	var message string
+	if transaction.Type == "topup" {
+		message = "Topup berhasil dikonfirmasi dan balance user telah ditambahkan"
+	} else {
+		message = "Withdraw berhasil dikonfirmasi"
+	}
+
+	return helpers.Response(c, 200, "Success", message, transaction, nil)
 }
 
 // RejectTransactionHandler mengubah status transaksi menjadi "reject"
@@ -428,52 +491,71 @@ func RejectTransactionHandler(c *fiber.Ctx) error {
 	// Ambil ID dari parameter URL
 	idParam := c.Params("id")
 	if idParam == "" {
-		return c.Status(400).JSON(fiber.Map{
-			"error": "ID transaksi tidak ditemukan",
-		})
+		return helpers.Response(c, 400, "Failed", "ID transaksi tidak ditemukan", nil, nil)
 	}
 
 	id, err := strconv.ParseUint(idParam, 10, 64)
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{
-			"error": "ID transaksi tidak valid",
-		})
+		return helpers.Response(c, 400, "Failed", "ID transaksi tidak valid", nil, nil)
 	}
 
-	// Cari transaksi
+	// Mulai transaction database
+	tx := configs.DB.Begin()
+	if tx.Error != nil {
+		return helpers.Response(c, 500, "Failed", "Gagal memulai transaksi database", nil, nil)
+	}
+
+	// Cari transaksi dengan lock untuk menghindari race condition
 	var transaction models.Transaction
-	err = configs.DB.Preload("User").First(&transaction, id).Error
+	err = tx.Set("gorm:query_option", "FOR UPDATE").Preload("User").First(&transaction, id).Error
 	if err != nil {
+		tx.Rollback()
 		if err == gorm.ErrRecordNotFound {
-			return c.Status(404).JSON(fiber.Map{
-				"error": "Transaksi tidak ditemukan",
-			})
+			return helpers.Response(c, 404, "Failed", "Transaksi tidak ditemukan", nil, nil)
 		}
-		return c.Status(500).JSON(fiber.Map{
-			"error": "Gagal mengambil data transaksi",
-		})
+		return helpers.Response(c, 500, "Failed", "Gagal mengambil data transaksi", nil, nil)
 	}
 
 	// Validasi: hanya bisa direject jika status masih "pending"
 	if transaction.Status != "pending" {
-		return c.Status(400).JSON(fiber.Map{
-			"error": "Transaksi sudah tidak dalam status 'pending'",
-		})
+		tx.Rollback()
+		return helpers.Response(c, 400, "Failed", "Transaksi sudah tidak dalam status 'pending'", nil, nil)
 	}
 
-	// Update status dan admin ID
+	// Update status transaksi
 	transaction.Status = "reject"
+	// Set admin ID jika diperlukan (ambil dari JWT atau context)
+	// adminID, err := GetAdminIDFromContext(c)
+	// if err == nil {
+	// 	transaction.AdminID = &adminID
+	// }
 
-	// Simpan perubahan
-	err = configs.DB.Save(&transaction).Error
-	if err != nil {
-		return c.Status(500).JSON(fiber.Map{
-			"error": "Gagal memperbarui status transaksi",
-		})
+	// Kembalikan balance untuk transaksi withdraw yang direject
+	if transaction.Type == "withdraw" {
+		// Untuk withdraw yang direject: kembalikan balance ke user
+		err = tx.Model(&models.User{}).Where("id = ?", transaction.UserID).
+			Update("balance", gorm.Expr("balance + ?", transaction.Balance)).Error
+		if err != nil {
+			tx.Rollback()
+			return helpers.Response(c, 500, "Failed", "Gagal mengembalikan balance user", nil, nil)
+		}
 	}
 
-	return c.JSON(fiber.Map{
-		"message": "Transaksi berhasil ditolak",
-		"data":    transaction,
-	})
+	// Simpan perubahan transaksi
+	err = tx.Save(&transaction).Error
+	if err != nil {
+		tx.Rollback()
+		return helpers.Response(c, 500, "Failed", "Gagal memperbarui status transaksi", nil, nil)
+	}
+
+	// Commit transaction
+	if err := tx.Commit().Error; err != nil {
+		tx.Rollback()
+		return helpers.Response(c, 500, "Failed", "Gagal menyimpan perubahan", nil, nil)
+	}
+
+	// Reload transaksi dengan data terbaru
+	configs.DB.Preload("User").First(&transaction, id)
+
+	return helpers.Response(c, 200, "Success", "Transaksi berhasil ditolak", transaction, nil)
 }
