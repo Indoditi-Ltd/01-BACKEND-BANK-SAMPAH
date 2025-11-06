@@ -8,8 +8,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
@@ -216,19 +218,28 @@ func PostpaidInquiry(c *fiber.Ctx) error {
 	// Return hasil inquiry dari API langsung ke client
 	return helpers.Response(c, 200, "Success", "Success Inquiry", result["data"], nil)
 }
-
 func PaymentPostpaid(c *fiber.Ctx) error {
-	var reqBody models.ExternalPaymentRequest
+	var reqBody struct {
+		TrID   string `json:"tr_id"`
+		UserID string `json:"user_id"`
+	}
 
 	if err := c.BodyParser(&reqBody); err != nil {
 		return helpers.Response(c, 400, "Failed", "Invalid request body", nil, nil)
 	}
 
+	// Convert user_id dari string ke uint
+	userID, err := strconv.ParseUint(reqBody.UserID, 10, 32)
+	if err != nil {
+		return helpers.Response(c, 400, "Failed", "Invalid user ID", nil, nil)
+	}
+
 	username := os.Getenv("IDENTITY")
-	sign := helpers.MakeSignPricelist(reqBody.TrID) // buat tanda tangan sesuai format API kamu
+	sign := helpers.MakeSignPricelist(reqBody.TrID)
 	if username == "" || sign == "" {
 		return helpers.Response(c, 400, "Failed", "Username or sign is Empty", nil, nil)
 	}
+
 	// Siapkan body request ke IAK
 	payload := map[string]any{
 		"commands": "pay-pasca",
@@ -241,7 +252,7 @@ func PaymentPostpaid(c *fiber.Ctx) error {
 	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonBody))
 
 	if err != nil {
-		return helpers.Response(c, 400, "Failed", "Failed decode response", nil, nil)
+		return helpers.Response(c, 400, "Failed", "Failed to call external API", nil, nil)
 	}
 
 	defer resp.Body.Close()
@@ -253,5 +264,155 @@ func PaymentPostpaid(c *fiber.Ctx) error {
 		return helpers.Response(c, 400, "Failed", "Failed decode response", nil, nil)
 	}
 
-	return helpers.Response(c, 200, "Success", "Success Inquiry", result["data"], nil)
+	// Simpan ke history jika response success
+	if data, ok := result["data"].(map[string]interface{}); ok {
+		// Gunakan goroutine agar tidak blocking response ke client
+		go func() {
+			if err := savePostpaidHistory(uint(userID), data); err != nil {
+				log.Printf("Failed to save payment history: %v", err)
+			} else {
+				log.Printf("Successfully saved payment history for user %d", userID)
+			}
+		}()
+	}
+
+	return helpers.Response(c, 200, "Success", "Success Payment", result["data"], nil)
+}
+
+// Fungsi untuk menentukan product type berdasarkan response data
+func determineProductType(data map[string]interface{}) string {
+	if code, ok := data["code"].(string); ok {
+		// List provider internet
+		internetProviders := []string{"CBN", "FIRSTMEDIA", "MYREPUBLIC", "SPEEDY", "SPEEDYB", "TELKOMPSTN"}
+		
+		// Cek apakah code termasuk provider internet
+		for _, provider := range internetProviders {
+			if code == provider {
+				return "internet"
+			}
+		}
+		
+		// Jenis layanan lainnya
+		switch {
+		case strings.HasPrefix(code, "BPJS") && code != "BPJSTK" && code != "BPJSTKPU":
+			return "bpjs_health"
+		case code == "BPJSTK" || code == "BPJSTKPU":
+			return "bpjs_employment"
+		case strings.HasPrefix(code, "PBB"):
+			return "pbb"
+		case strings.HasPrefix(code, "PDAM"):
+			return "pdam"
+		case code == "PLNPOSTPAID":
+			return "pln_postpaid"
+		case code == "PGAS":
+			return "gas"
+		default:
+			return "other_postpaid"
+		}
+	}
+	return "unknown"
+}
+
+// Helper function untuk generate product name
+func getProductName(data map[string]interface{}) string {
+	productType := determineProductType(data)
+	
+	if trName, ok := data["tr_name"].(string); ok {
+		switch productType {
+		case "bpjs_health":
+			return fmt.Sprintf("BPJS Kesehatan - %s", trName)
+		case "bpjs_employment":
+			return fmt.Sprintf("BPJS Ketenagakerjaan - %s", trName)
+		case "bpjs_employment_pu":
+			return fmt.Sprintf("BPJS Ketenagakerjaan PU - %s", trName)
+		case "pbb":
+			return fmt.Sprintf("Pajak Bumi Bangunan - %s", trName)
+		case "pdam":
+			return fmt.Sprintf("PDAM - %s", trName)
+		case "pln_postpaid":
+			return fmt.Sprintf("PLN Pascabayar - %s", trName)
+		case "telkom":
+			return fmt.Sprintf("Telkom - %s", trName)
+		case "internet":
+			return fmt.Sprintf("Internet - %s", trName)
+		case "gas":
+			return fmt.Sprintf("Gas - %s", trName)
+		default:
+			return fmt.Sprintf("Layanan Postpaid - %s", trName)
+		}
+	}
+	
+	// Fallback jika tidak ada tr_name
+	switch productType {
+	case "bpjs_health":
+		return "BPJS Kesehatan"
+	case "bpjs_employment":
+		return "BPJS Ketenagakerjaan"
+	case "pbb":
+		return "Pajak Bumi Bangunan"
+	case "pdam":
+		return "PDAM"
+	case "pln_postpaid":
+		return "PLN Pascabayar"
+	case "telkom":
+		return "Telkom"
+	case "internet":
+		return "Internet"
+	case "gas":
+		return "Gas"
+	default:
+		return "Layanan Postpaid"
+	}
+}
+
+// Fungsi untuk menyimpan history postpaid
+func savePostpaidHistory(userID uint, data map[string]interface{}) error {
+	history := models.HistoryModel{
+		UserID:      userID,
+		ProductType: determineProductType(data),
+		Status:      "success",
+	}
+
+	// Extract dan mapping data dari response IAK
+	if trID, ok := data["tr_id"].(float64); ok {
+		history.RefID = fmt.Sprintf("%.0f", trID)
+	} else if refID, ok := data["ref_id"].(string); ok {
+		history.RefID = refID
+	}
+
+	if hp, ok := data["hp"].(string); ok {
+		history.UserNumber = hp
+	}
+
+	// Set product name
+	history.ProductName = getProductName(data)
+
+	if period, ok := data["period"].(string); ok {
+		history.BillingPeriod = period
+	}
+
+	// Format amount dengan currency
+	if nominal, ok := data["nominal"].(float64); ok {
+		history.ProductPrice = fmt.Sprintf("Rp. %.0f", nominal)
+	}
+	if price, ok := data["price"].(float64); ok {
+		history.TotalPrice = fmt.Sprintf("Rp. %.0f", price)
+	}
+
+	// Simpan desc hanya jika ada dan berisi data
+	if desc, ok := data["desc"].(map[string]interface{}); ok && len(desc) > 0 {
+		descJSON, _ := json.Marshal(desc)
+		history.Province = string(descJSON)
+	}
+
+	// Set status berdasarkan response code
+	if responseCode, ok := data["response_code"].(string); ok {
+		if responseCode != "00" {
+			history.Status = "failed"
+		}
+	}
+
+	// Year, Region, StroomToken dibiarkan kosong saja
+
+	return configs.DB.Create(&history).Error
 }
