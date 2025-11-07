@@ -2,6 +2,7 @@ package routes
 
 import (
 	"backend-mulungs/controllers"
+	"backend-mulungs/controllers/donation"
 	"backend-mulungs/middleware"
 
 	"github.com/gofiber/fiber/v2"
@@ -144,5 +145,18 @@ func SetupRoute(app *fiber.App) {
 			wasteGroup.Put("/products/:id", controllers.UpdateProductWaste)    // Update
 			wasteGroup.Delete("/products/:id", controllers.DeleteProductWaste) // Delete
 		}
+
+		donationGroup := api.Group("/donations")
+		{
+			donationGroup.Get("/", controllers.GetDonationList)
+			donationGroup.Get("/:id", controllers.GetDonationByID)
+			donationGroup.Post("/", controllers.CreateDonation)
+			donationGroup.Put("/:id", controllers.UpdateDonation)
+			donationGroup.Delete("/:id", controllers.DeleteDonation)
+			donationGroup.Post("/:user_id/donate", donation.CreateDonation)                  // POST /donations/:user_id/donate
+			donationGroup.Get("/:user_id/history", donation.GetUserDonations)                // GET /donations/:user_id/history
+			donationGroup.Post("/:donation_id/complete/:user_id", donation.CompleteDonation) // POST /donations/:donation_id/complete/:user_id   // POST /donations/:id/complete
+		}
+
 	}
 }

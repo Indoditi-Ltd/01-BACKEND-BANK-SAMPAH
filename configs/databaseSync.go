@@ -12,5 +12,7 @@ func DatabaseSync() {
 		&models.HistoryModel{},
 		&models.Marketing{},
 		&models.ProductWaste{},
+		&models.Donation{},
+		&models.DonationHistory{},
 	)
 }
