@@ -410,7 +410,7 @@ func PaymentPostpaid(c *fiber.Ctx) error {
 	history := models.HistoryModel{
 		UserID:      uint(userID),
 		RefID:       reqBody.TrID,
-		ProductType: "postpaid",
+		ProductType: determineProductType(data), // ✅ PERBAIKAN: Gunakan fungsi determineProductType
 		Status:      "SUCCESS",
 	}
 
