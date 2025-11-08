@@ -86,7 +86,6 @@ func formatBalance(balance int) string {
 	}
 	return "Rp" + strconv.Itoa(balance)
 }
-
 func formatCurrency(amount string) string {
 	// Convert string amount to int for formatting
 	if amount == "" {
@@ -96,17 +95,28 @@ func formatCurrency(amount string) string {
 	// Remove non-numeric characters and convert to int
 	cleanAmount := strings.ReplaceAll(amount, ".", "")
 	cleanAmount = strings.ReplaceAll(cleanAmount, ",", "")
+	cleanAmount = strings.ReplaceAll(cleanAmount, "Rp", "")
+	cleanAmount = strings.TrimSpace(cleanAmount)
 
 	if num, err := strconv.Atoi(cleanAmount); err == nil {
-		if num < 0 {
-			return "-Rp" + strconv.Itoa(-num/1000) + ".000"
+		// Format dengan titik sebagai pemisah ribuan
+		str := strconv.Itoa(num)
+		var result string
+
+		// Tambahkan titik setiap 3 digit dari belakang
+		n := len(str)
+		for i := 0; i < n; i++ {
+			if i > 0 && (n-i)%3 == 0 {
+				result += "."
+			}
+			result += string(str[i])
 		}
-		return "Rp" + strconv.Itoa(num/1000) + ".000"
+
+		return "Rp" + result
 	}
 
 	return "Rp" + amount
 }
-
 func formatDate(date time.Time) string {
 	// Format: "27 Agustus 2025"
 	months := []string{"Januari", "Februari", "Maret", "April", "Mei", "Juni",
