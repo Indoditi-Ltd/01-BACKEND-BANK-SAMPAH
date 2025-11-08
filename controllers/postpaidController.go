@@ -341,25 +341,30 @@ func PaymentPostpaid(c *fiber.Ctx) error {
 	// 3. Hitung total amount = price (sudah include admin IAK) + margin PPOB
 	var totalAmount int
 	var marginAmount int
+	var productPrice int
 
 	// Gunakan price yang sudah include admin IAK
 	if price, ok := data["price"].(float64); ok {
 		basePrice := int(price)
-
+		
 		// Hitung margin dari PPOB
 		if ppobSettings.Margin > 0 {
 			marginAmount = int(float64(basePrice) * (float64(ppobSettings.Margin) / 100))
 		}
-
+		
 		// Total yang harus dibayar user = price IAK + margin PPOB
 		totalAmount = basePrice + marginAmount
-
+		
+		// Product price juga sama dengan total amount (harga IAK + margin PPOB)
+		productPrice = totalAmount
+		
 		fmt.Printf("💰 Price calculation:\n")
 		fmt.Printf("   IAK price (include admin): Rp. %d\n", basePrice)
 		fmt.Printf("   Margin PPOB: %.1f%%\n", float64(ppobSettings.Margin))
 		fmt.Printf("   Margin amount: Rp. %d\n", marginAmount)
+		fmt.Printf("   Product price: Rp. %d\n", productPrice)
 		fmt.Printf("   Total user pay: Rp. %d\n", totalAmount)
-
+		
 	} else {
 		tx.Rollback()
 		return helpers.Response(c, 400, "Failed", "Cannot determine payment amount from price field", nil, nil)
@@ -368,8 +373,8 @@ func PaymentPostpaid(c *fiber.Ctx) error {
 	// 4. Validasi saldo user cukup
 	if user.Balance < totalAmount {
 		tx.Rollback()
-		return helpers.Response(c, 400, "Failed",
-			fmt.Sprintf("Saldo tidak cukup. Saldo anda: Rp. %d, Dibutuhkan: Rp. %d",
+		return helpers.Response(c, 400, "Failed", 
+			fmt.Sprintf("Saldo tidak cukup. Saldo anda: Rp. %d, Dibutuhkan: Rp. %d", 
 				user.Balance, totalAmount), nil, nil)
 	}
 
@@ -417,10 +422,9 @@ func PaymentPostpaid(c *fiber.Ctx) error {
 	}
 
 	// Simpan harga dengan format yang benar
-	if price, ok := data["price"].(float64); ok {
-		history.ProductPrice = fmt.Sprintf("%.0f", price) // Harga IAK (include admin)
-	}
-	history.TotalPrice = fmt.Sprintf("%d", totalAmount) // Total yang dibayar user (price + margin PPOB)
+	// Product price = harga IAK + margin PPOB (sama dengan total amount)
+	history.ProductPrice = fmt.Sprintf("%d", productPrice)
+	history.TotalPrice = fmt.Sprintf("%d", totalAmount)
 
 	// Simpan desc hanya jika ada dan berisi data
 	if desc, ok := data["desc"].(map[string]interface{}); ok && len(desc) > 0 {
@@ -441,7 +445,7 @@ func PaymentPostpaid(c *fiber.Ctx) error {
 		// ❌ Jika gagal simpan history, kembalikan saldo user dan company balance
 		user.Balance += totalAmount
 		tx.Save(&user)
-
+		
 		if marginAmount > 0 {
 			var company models.Company
 			if err := tx.First(&company).Error; err == nil {
@@ -449,7 +453,7 @@ func PaymentPostpaid(c *fiber.Ctx) error {
 				tx.Save(&company)
 			}
 		}
-
+		
 		tx.Rollback()
 		return helpers.Response(c, 500, "Failed", "Failed to save transaction history", nil, nil)
 	}
@@ -458,7 +462,7 @@ func PaymentPostpaid(c *fiber.Ctx) error {
 	tx.Commit()
 
 	// Log untuk debugging
-	fmt.Printf("✅ PaymentPostpaid berhasil - UserID: %d, Amount: Rp. %d, Saldo tersisa: Rp. %d\n",
+	fmt.Printf("✅ PaymentPostpaid berhasil - UserID: %d, Amount: Rp. %d, Saldo tersisa: Rp. %d\n", 
 		userID, totalAmount, user.Balance)
 
 	return helpers.Response(c, 200, "Success", "Payment processed successfully", result["data"], nil)
