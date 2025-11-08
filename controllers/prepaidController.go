@@ -649,7 +649,10 @@ func CallbackPrepaid(c *fiber.Ctx) error {
 
 	// ⚡ PLN memiliki stroom_token, non-PLN kosong
 	if strings.Contains(strings.ToLower(data.ProductCode), "pln") {
-		updateData["stroom_token"] = data.SN
+		parts := strings.Split(data.SN, "/")
+		if len(parts) > 0 {
+			updateData["stroom_token"] = strings.TrimSpace(parts[0])
+		}
 	} else {
 		updateData["stroom_token"] = ""
 	}
