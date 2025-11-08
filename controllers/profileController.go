@@ -49,7 +49,6 @@ func GetAdminProfile(c *fiber.Ctx) error {
 
 	return helpers.Response(c, 200, "Success", "Profile retrieved successfully", profileData, nil)
 }
-
 // UpdateAdminProfile - Update admin profile
 func UpdateAdminProfile(c *fiber.Ctx) error {
 	userID, err := helpers.ExtractUserID(c)
@@ -68,12 +67,6 @@ func UpdateAdminProfile(c *fiber.Ctx) error {
 	if err := c.BodyParser(&body); err != nil {
 		return helpers.Response(c, 400, "Failed", "Failed to parse request body", nil, nil)
 	}
-
-	// Convert userID to uint
-	// id, err := strconv.ParseUint(userID, 10, 32)
-	// if err != nil {
-	// 	return helpers.Response(c, 400, "Failed", "Invalid user ID", nil, nil)
-	// }
 
 	// Check if user exists
 	var user models.User
@@ -122,11 +115,22 @@ func UpdateAdminProfile(c *fiber.Ctx) error {
 		}
 	}
 
-	// Prepare update data
-	updateData := map[string]any{
-		"name":    body.Name,
-		"phone":   body.Phone,
-		"address": body.Address,
+	// Prepare update data - HANYA update field yang diisi
+	updateData := make(map[string]any)
+
+	// Only update name if provided
+	if body.Name != "" {
+		updateData["name"] = body.Name
+	}
+
+	// Only update phone if provided
+	if body.Phone != "" {
+		updateData["phone"] = body.Phone
+	}
+
+	// Only update address if provided
+	if body.Address != "" {
+		updateData["address"] = body.Address
 	}
 
 	// Only update email if provided and different
@@ -137,6 +141,11 @@ func UpdateAdminProfile(c *fiber.Ctx) error {
 	// Update photo if new one was uploaded
 	if photoURL != "" {
 		updateData["photo"] = photoURL
+	}
+
+	// Jika tidak ada field yang diupdate, return
+	if len(updateData) == 0 {
+		return helpers.Response(c, 400, "Failed", "No data to update", nil, nil)
 	}
 
 	// Update user in database

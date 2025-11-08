@@ -464,7 +464,6 @@ func UniqueEtollByDescription(products []models.ProductPrepaid) []models.Product
 
 // topup prepaid and save to history
 func TopupPrepaid(c *fiber.Ctx) error {
-	//TODO: Disini jangan lupa tambahkan sebuah pengechekan untuk saldo user yang tidak cukup maka akan dibuat return
 	username := os.Getenv("IDENTITY")
 
 	var reqBody struct {
@@ -487,7 +486,39 @@ func TopupPrepaid(c *fiber.Ctx) error {
 		return helpers.Response(c, 400, "Failed", "Gagal membaca body", nil, nil)
 	}
 
-	// Request ke API eksternal
+	// ⚡ PERBAIKAN: Gunakan TotalPrice yang sudah dalam format angka saja
+	// TotalPrice: "11500" (tanpa "Rp.")
+	productPrice, err := strconv.Atoi(reqBody.TotalPrice)
+	if err != nil {
+		return helpers.Response(c, 400, "Failed", "Format total price tidak valid: "+reqBody.TotalPrice, nil, nil)
+	}
+
+	// Start database transaction
+	tx := configs.DB.Begin()
+
+	// 1. Cek dan potong saldo user di awal (dengan lock untuk avoid race condition)
+	var user models.User
+	if err := tx.Set("gorm:query_option", "FOR UPDATE").First(&user, reqBody.UserID).Error; err != nil {
+		tx.Rollback()
+		return helpers.Response(c, 404, "Failed", "User tidak ditemukan", nil, nil)
+	}
+
+	// Validasi saldo user cukup
+	if user.Balance < productPrice {
+		tx.Rollback()
+		return helpers.Response(c, 400, "Failed",
+			fmt.Sprintf("Saldo tidak cukup. Saldo anda: Rp. %d, Dibutuhkan: Rp. %d",
+				user.Balance, productPrice), nil, nil)
+	}
+
+	// Potong saldo user di awal
+	user.Balance -= productPrice
+	if err := tx.Save(&user).Error; err != nil {
+		tx.Rollback()
+		return helpers.Response(c, 500, "Failed", "Gagal memotong saldo user", nil, nil)
+	}
+
+	// 2. Request ke API eksternal
 	requestBody := models.ExternalRequestTopup{
 		Username:    username,
 		Sign:        helpers.MakeSignPricelist(reqBody.RefID),
@@ -499,6 +530,10 @@ func TopupPrepaid(c *fiber.Ctx) error {
 
 	resp, err := http.Post("https://prepaid.iak.dev/api/top-up", "application/json", bytes.NewBuffer(jsonBody))
 	if err != nil {
+		// ❌ Jika API request gagal, kembalikan saldo user
+		user.Balance += productPrice
+		tx.Save(&user)
+		tx.Rollback()
 		return helpers.Response(c, 400, "Failed", "Gagal request API eksternal", nil, nil)
 	}
 	defer resp.Body.Close()
@@ -506,56 +541,72 @@ func TopupPrepaid(c *fiber.Ctx) error {
 	body, _ := io.ReadAll(resp.Body)
 	var result models.PrepaidResponseTopup
 	if err := json.Unmarshal(body, &result); err != nil {
+		// ❌ Jika decode response gagal, kembalikan saldo user
+		user.Balance += productPrice
+		tx.Save(&user)
+		tx.Rollback()
 		return helpers.Response(c, 400, "Failed", "Gagal decode response API", nil, nil)
 	}
 
 	// ⚠️ Jika response dari API gagal (misalnya status = 2 atau pesan MAXIMUM ...),
-	// maka jangan simpan transaksi ke database.
+	// maka kembalikan saldo user
 	if result.Data.Status == 2 || strings.Contains(strings.ToUpper(result.Data.Message), "MAXIMUM 1 NUMBER 1 TIME IN 1 DAY") {
+		user.Balance += productPrice
+		tx.Save(&user)
+		tx.Rollback()
 		return helpers.Response(c, 400, "Failed", result.Data.Message, result.Data, nil)
 	}
 
-	// // Update saldo perusahaan
-
-	// Simpan riwayat ke database
+	// 3. Simpan riwayat ke database dengan status PROSES
 	history := models.HistoryModel{
 		UserID:        reqBody.UserID,
 		RefID:         reqBody.RefID,
 		ProductName:   reqBody.ProductName,
-		ProductPrice:  reqBody.ProductPrice,
+		ProductPrice:  reqBody.ProductPrice, // Tetap simpan yang asli dengan "Rp." untuk display
 		ProductType:   reqBody.ProductType,
 		UserNumber:    reqBody.UserNumber,
-		TotalPrice:    reqBody.TotalPrice,
+		TotalPrice:    reqBody.TotalPrice, // Simpan yang sudah angka saja "11500"
 		StroomToken:   reqBody.StroomToken,
 		BillingPeriod: reqBody.BillingPeriod,
 		Year:          reqBody.Year,
 		Province:      reqBody.Province,
 		Region:        reqBody.Region,
-		Status:        "PROSES",
+		Status:        "PROSES", // Menunggu callback
 	}
-	if err := configs.DB.Create(&history).Error; err != nil {
+	if err := tx.Create(&history).Error; err != nil {
+		// ❌ Jika gagal simpan history, kembalikan saldo user
+		user.Balance += productPrice
+		tx.Save(&user)
+		tx.Rollback()
 		return helpers.Response(c, 500, "Failed", "Gagal menyimpan riwayat transaksi", nil, nil)
 	}
 
-	return helpers.Response(c, 200, "Success", "Transaksi berhasil dan riwayat tersimpan", result.Data, nil)
+	// Commit transaction
+	tx.Commit()
+
+	// Log untuk debugging
+	fmt.Printf("✅ TopupPrepaid berhasil - UserID: %d, Amount: Rp. %d, Saldo tersisa: Rp. %d, Status: PROSES\n",
+		reqBody.UserID, productPrice, user.Balance)
+
+	return helpers.Response(c, 200, "Success", "Transaksi diproses, menunggu konfirmasi", result.Data, nil)
 }
 
 func CallbackPrepaid(c *fiber.Ctx) error {
 	// Struktur sesuai dengan JSON callback dari API
 	var body struct {
 		Data struct {
-			RefID          string `json:"ref_id"`
-			Status         string `json:"status"`
-			ProductCode    string `json:"product_code"`
-			CustomerID     string `json:"customer_id"`
-			Price          string `json:"price"`
-			Message        string `json:"message"`
-			SN             string `json:"sn"`
-			PIN            string `json:"pin"`
-			ActivationCode string `json:"activation_code"`
-			Balance        string `json:"balance"`
-			TrID           string `json:"tr_id"`
-			RC             string `json:"rc"`
+			RefID       string `json:"ref_id"`
+			Status      string `json:"status"`
+			ProductCode string `json:"product_code"`
+			CustomerID  string `json:"customer_id"`
+			Price       string `json:"price"`
+			Message     string `json:"message"`
+			SN          string `json:"sn"`
+			PIN         string `json:"pin"`
+			Balance     string `json:"balance"`
+			TrID        string `json:"tr_id"`
+			RC          string `json:"rc"`
+			Sign        string `json:"sign"`
 		} `json:"data"`
 	}
 
@@ -578,74 +629,176 @@ func CallbackPrepaid(c *fiber.Ctx) error {
 		})
 	}
 
-	// Siapkan data yang akan diupdate
+	// Start database transaction
+	tx := configs.DB.Begin()
+
+	// 1. Cari history transaksi berdasarkan ref_id
+	var history models.HistoryModel
+	if err := tx.Where("ref_id = ?", data.RefID).First(&history).Error; err != nil {
+		tx.Rollback()
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"status":  "error",
+			"message": "transaction not found",
+		})
+	}
+
+	// 2. Siapkan data yang akan diupdate
 	updateData := map[string]any{
-		"status": data.Message, // bisa pakai message agar lebih deskriptif (FAILED/SUCCESS)
+		"status": data.Message, // "SUCCESS" atau "FAILED"
 	}
 
 	// ⚡ PLN memiliki stroom_token, non-PLN kosong
 	if strings.Contains(strings.ToLower(data.ProductCode), "pln") {
-		parts := strings.Split(data.SN, "/")
-		if len(parts) > 0 {
-			updateData["stroom_token"] = strings.TrimSpace(parts[0])
-		}
+		updateData["stroom_token"] = data.SN
 	} else {
 		updateData["stroom_token"] = ""
 	}
 
-	// Update ke database berdasarkan ref_id
-	result := configs.DB.Model(&models.HistoryModel{}).
-		Where("ref_id = ?", data.RefID).
-		Updates(updateData)
+	// 3. Jika status SUCCESS (status = "1" dan rc = "00")
+	if data.Status == "1" && data.RC == "00" {
+		// ⚡ PERBAIKAN: Gunakan TotalPrice yang sudah dalam format angka
+		userPaidPrice, err := strconv.Atoi(history.TotalPrice)
+		if err != nil {
+			tx.Rollback()
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"status":  "error",
+				"message": "invalid total price format in history: " + history.TotalPrice,
+			})
+		}
 
-	if result.Error != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"status":  "error",
-			"message": "failed to update history",
-			"error":   result.Error.Error(),
-		})
+		// Convert real price dari callback ke int
+		realPrice, err := strconv.Atoi(data.Price)
+		if err != nil {
+			tx.Rollback()
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"status":  "error",
+				"message": "invalid price format in callback: " + data.Price,
+			})
+		}
+
+		// 3a. Hitung margin (selisih antara yang dibayar user vs real price dari callback)
+		marginAmount := userPaidPrice - realPrice
+
+		if marginAmount > 0 {
+			// 3b. Tambah margin ke company balance
+			var company models.Company
+			if err := tx.First(&company).Error; err != nil {
+				// Jika company tidak ada, buat baru
+				company = models.Company{Balance: marginAmount}
+				if err := tx.Create(&company).Error; err != nil {
+					tx.Rollback()
+					return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+						"status":  "error",
+						"message": "failed to create company record",
+					})
+				}
+			} else {
+				// Jika company sudah ada, tambah balance
+				company.Balance += marginAmount
+				if err := tx.Save(&company).Error; err != nil {
+					tx.Rollback()
+					return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+						"status":  "error",
+						"message": "failed to update company balance",
+					})
+				}
+			}
+
+			// Hitung persentase margin
+			marginPercentage := (float64(marginAmount) / float64(realPrice)) * 100
+
+			fmt.Printf("💰 SUCCESS - Margin calculation:\n")
+			fmt.Printf("   User paid: Rp. %d\n", userPaidPrice)
+			fmt.Printf("   IAK price: Rp. %d\n", realPrice)
+			fmt.Printf("   Margin: Rp. %d (%.1f%%)\n", marginAmount, marginPercentage)
+			fmt.Printf("   Added to company balance\n")
+		} else if marginAmount == 0 {
+			fmt.Printf("ℹ️ SUCCESS - No margin. User paid: Rp. %d, IAK price: Rp. %d\n",
+				userPaidPrice, realPrice)
+		} else {
+			fmt.Printf("⚠️ SUCCESS - Negative margin detected! User paid less than IAK price\n")
+			fmt.Printf("   User paid: Rp. %d, IAK price: Rp. %d\n", userPaidPrice, realPrice)
+		}
+
+		// Update history status
+		if err := tx.Model(&history).Updates(updateData).Error; err != nil {
+			tx.Rollback()
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"status":  "error",
+				"message": "failed to update history",
+				"error":   err.Error(),
+			})
+		}
+
+		fmt.Printf("✅ Transaction SUCCESS - RefID: %s\n", data.RefID)
+
+	} else {
+		// 4. Jika status FAILED, kembalikan saldo ke user
+		fmt.Printf("❌ Transaction FAILED - Status: %s, RC: %s, Message: %s\n",
+			data.Status, data.RC, data.Message)
+
+		// ⚡ PERBAIKAN: Gunakan TotalPrice untuk refund
+		productPrice, err := strconv.Atoi(history.TotalPrice)
+		if err != nil {
+			tx.Rollback()
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"status":  "error",
+				"message": "invalid total price format for refund: " + history.TotalPrice,
+			})
+		}
+
+		// Kembalikan saldo ke user
+		var user models.User
+		if err := tx.First(&user, history.UserID).Error; err != nil {
+			tx.Rollback()
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"status":  "error",
+				"message": "user not found for refund",
+			})
+		}
+
+		user.Balance += productPrice
+		if err := tx.Save(&user).Error; err != nil {
+			tx.Rollback()
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"status":  "error",
+				"message": "failed to refund user balance",
+			})
+		}
+
+		// Update history status ke FAILED
+		if err := tx.Model(&history).Updates(updateData).Error; err != nil {
+			tx.Rollback()
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"status":  "error",
+				"message": "failed to update history status",
+				"error":   err.Error(),
+			})
+		}
+
+		fmt.Printf("💰 Refund processed - UserID: %d, Amount: Rp. %d, New Balance: Rp. %d\n",
+			user.Id, productPrice, user.Balance)
 	}
 
-	if result.RowsAffected == 0 {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"status":  "error",
-			"message": "no record updated (possibly invalid ref_id)",
-		})
-	}
-
-	// TODO: tambahkan sebuah code untuk mengurangi saldo user, dan ketika failed maka tidak akan memotong saldo user
-
-	// Ambil margin PPOB
-	// var settings models.Ppob
-	// if err := configs.DB.First(&settings).Error; err != nil {
-	// 	return helpers.Response(c, 400, "Failed", "Gagal mengambil margin", nil, nil)
-	// }
-	// margin := float64(settings.Margin)
-
-	// marginAmount := helpers.RoundToNearest(float64(reqBody.ProductPrice) * (margin / 100))
-	// var company models.Company
-	// if err := configs.DB.First(&company).Error; err != nil {
-	// 	if errors.Is(err, gorm.ErrRecordNotFound) {
-	// 		company = models.Company{Balance: 0}
-	// 		configs.DB.Create(&company)
-	// 	} else {
-	// 		return helpers.Response(c, 400, "Failed", "Gagal mengambil data company", nil, nil)
-	// 	}
-	// }
-
-	// company.Balance += int(marginAmount)
-	// if err := configs.DB.Save(&company).Error; err != nil {
-	// 	return helpers.Response(c, 400, "Failed", "Gagal update saldo perusahaan", nil, nil)
-	// }
+	// 5. Commit transaction
+	tx.Commit()
 
 	// Log untuk debugging
-	fmt.Println("✅ CallbackPrepaid berhasil dipanggil pada:", time.Now().Format("02-01-2006 15:04:05"))
-	fmt.Printf("📦 Data diterima: %+v\n", data)
+	fmt.Println("✅ CallbackPrepaid processed at:", time.Now().Format("02-01-2006 15:04:05"))
+	fmt.Printf("📦 Callback data: RefID: %s, Status: %s, RC: %s, Message: %s\n",
+		data.RefID, data.Status, data.RC, data.Message)
 
 	// Kirim respon sukses
 	return c.JSON(fiber.Map{
 		"status":  "success",
-		"message": "callback processed",
+		"message": "callback processed successfully",
+		"data": fiber.Map{
+			"ref_id":       data.RefID,
+			"status":       data.Status,
+			"rc":           data.RC,
+			"message":      data.Message,
+			"processed_at": time.Now().Format("2006-01-02 15:04:05"),
+		},
 	})
 }
 
