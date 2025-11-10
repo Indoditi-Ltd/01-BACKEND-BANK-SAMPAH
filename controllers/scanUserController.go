@@ -40,6 +40,9 @@ func ScanBarcodeUser(c *fiber.Ctx) error {
 	profile := map[string]any{
 		"id":                user.Id,
 		"name":              user.Name,
+		"phone":             user.Phone,
+		"address":           user.Address,
+		"photo":             user.Photo,
 		"plan_name":         getPlanName(user.Plan),
 		"balance":           user.Balance,
 		"balance_formatted": formatBalance(user.Balance),
