@@ -14,7 +14,7 @@ import (
 )
 
 // GetDonationList - Get all donation data with pagination and filters
-func GetDonationList(c *fiber.Ctx) error {
+func GetDonationListAll(c *fiber.Ctx) error {
 	var req struct {
 		StartDate string `query:"start_date"`
 		EndDate   string `query:"end_date"`
@@ -58,7 +58,91 @@ func GetDonationList(c *fiber.Ctx) error {
 
 	// Apply status filter
 	if req.Status != "" {
-		query = query.Where("status = ?", req.Status)
+		query = query.Where("status = ?", "pending")
+	}
+
+	// Apply search filter (description)
+	if req.Search != "" {
+		searchPattern := "%" + req.Search + "%"
+		query = query.Where("description ILIKE ?", searchPattern)
+	}
+
+	// Get total count for pagination
+	var total int64
+	query.Count(&total)
+
+	// Get donations dengan pagination
+	var donations []models.Donation
+	err := query.
+		Order("created_at DESC").
+		Offset(offset).
+		Limit(req.Limit).
+		Find(&donations).Error
+
+	if err != nil {
+		return helpers.Response(c, 500, "Failed", "Failed to fetch donation data", nil, nil)
+	}
+
+	// Format response dengan meta di dalam data
+	data := map[string]any{
+		"donations": donations,
+		"meta": map[string]any{
+			"page":  req.Page,
+			"limit": req.Limit,
+			"total": total,
+			"pages": (int(total) + req.Limit - 1) / req.Limit,
+		},
+	}
+
+	return helpers.Response(c, 200, "Success", "Donation data retrieved successfully", data, nil)
+}
+
+// GetDonationList - Get all donation data with pagination and filters
+func GetDonationList(c *fiber.Ctx) error {
+	var req struct {
+		StartDate string `query:"start_date"`
+		EndDate   string `query:"end_date"`
+		Search    string `query:"search"`
+		Status    string `query:"status"`
+		Page      int    `query:"page"`
+		Limit     int    `query:"limit"`
+	}
+
+	// Parse query parameters
+	if err := c.QueryParser(&req); err != nil {
+		return helpers.Response(c, 400, "Failed", "Failed to parse query parameters", nil, nil)
+	}
+
+	// Set default values
+	if req.Page == 0 {
+		req.Page = 1
+	}
+	if req.Limit == 0 {
+		req.Limit = 10
+	}
+	offset := (req.Page - 1) * req.Limit
+
+	// Build query - HANYA TAMPILKAN YANG STATUS = 'pending'
+	query := configs.DB.Model(&models.Donation{}).Where("deleted_at IS NULL AND status = ?", "pending")
+
+	// Apply date filter
+	if req.StartDate != "" {
+		startDate, err := time.Parse("2006-01-02", req.StartDate)
+		if err == nil {
+			query = query.Where("DATE(created_at) >= ?", startDate.Format("2006-01-02"))
+		}
+	}
+
+	if req.EndDate != "" {
+		endDate, err := time.Parse("2006-01-02", req.EndDate)
+		if err == nil {
+			query = query.Where("DATE(created_at) <= ?", endDate.Format("2006-01-02"))
+		}
+	}
+
+	// Apply status filter
+	if req.Status != "" {
+		query = query.Where("status = ?", "pending")
 	}
 
 	// Apply search filter (description)
