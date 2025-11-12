@@ -68,15 +68,101 @@ func CreateChildBank(c *fiber.Ctx) error {
 	return helpers.Response(c, 201, "Success", "Child Bank created successfully", res, nil)
 }
 
-// READ ALL
+// READ ALL dengan Pagination
 func GetAllChildBanks(c *fiber.Ctx) error {
-	var childBanks []models.ChildBank
-
-	if err := configs.DB.Preload("ParentBank").Find(&childBanks).Error; err != nil {
-		return helpers.Response(c, 500, "Failed", err.Error(), nil, nil)
+	var query struct {
+		Search      string `query:"search"`
+		Page        int    `query:"page"`
+		Limit       int    `query:"limit"`
+		Subdistrict string `query:"subdistrict"`
+		ParentBankID string `query:"parent_bank_id"`
 	}
 
-	return helpers.Response(c, 200, "Success", "Child Banks retrieved successfully", childBanks, nil)
+	if err := c.QueryParser(&query); err != nil {
+		return helpers.Response(c, fiber.StatusBadRequest, "Failed", "Invalid query parameters", nil, nil)
+	}
+
+	// Set default values
+	if query.Page == 0 {
+		query.Page = 1
+	}
+	if query.Limit == 0 {
+		query.Limit = 10
+	}
+	offset := (query.Page - 1) * query.Limit
+
+	var childBanks []models.ChildBank
+	dbQuery := configs.DB.Preload("ParentBank")
+
+	// Apply search filter
+	if query.Search != "" {
+		search := "%" + query.Search + "%"
+		dbQuery = dbQuery.Where("subdistrict LIKE ? OR address LIKE ? OR rt LIKE ? OR rw LIKE ?", 
+			search, search, search, search)
+	}
+
+	// Filter by subdistrict
+	if query.Subdistrict != "" {
+		dbQuery = dbQuery.Where("subdistrict = ?", query.Subdistrict)
+	}
+
+	// Filter by parent_bank_id
+	if query.ParentBankID != "" {
+		dbQuery = dbQuery.Where("parent_bank_id = ?", query.ParentBankID)
+	}
+
+	// Count total records
+	var total int64
+	dbQuery.Model(&models.ChildBank{}).Count(&total)
+
+	// Calculate total pages
+	totalPages := int(total) / query.Limit
+	if int(total)%query.Limit > 0 {
+		totalPages++
+	}
+
+	// Get data dengan pagination dan order
+	if err := dbQuery.Order("created_at DESC").
+		Offset(offset).
+		Limit(query.Limit).
+		Find(&childBanks).Error; err != nil {
+		return helpers.Response(c, fiber.StatusInternalServerError, "Failed", "Failed to fetch child banks data", nil, nil)
+	}
+
+	// Format response dengan nomor urut
+	var formattedChildBanks []map[string]interface{}
+	for i, bank := range childBanks {
+		formattedBank := map[string]interface{}{
+			"no":           i + 1 + offset,
+			"id":           bank.Id,
+			"subdistrict":  bank.Subdistrict,
+			"rt":           bank.RT,
+			"rw":           bank.RW,
+			"address":      bank.Address,
+			"latitude":     bank.Latitude,
+			"longitude":    bank.Longitude,
+			"norek":        bank.Norek,
+			"parent_bank":  bank.ParentBank,
+			"created_at":   bank.CreatedAt,
+			"updated_at":   bank.UpdatedAt,
+		}
+		formattedChildBanks = append(formattedChildBanks, formattedBank)
+	}
+
+	// Format meta data sederhana
+	meta := map[string]interface{}{
+		"limit": query.Limit,
+		"page":  query.Page,
+		"pages": totalPages,
+		"total": total,
+	}
+
+	response := map[string]interface{}{
+		"child_banks": formattedChildBanks,
+		"meta":        meta,
+	}
+
+	return helpers.Response(c, fiber.StatusOK, "Success", "Child banks retrieved successfully", response, nil)
 }
 
 // READ BY ID
