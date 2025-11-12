@@ -32,7 +32,6 @@ func GetTotalWaste(c *fiber.Ctx) error {
 
 	return helpers.Response(c, 200, "Success", "Total waste retrieved successfully", response, nil)
 }
-
 // GetProductWasteList - Get all product waste with filtering
 func GetProductWasteList(c *fiber.Ctx) error {
 	var query struct {
@@ -71,6 +70,12 @@ func GetProductWasteList(c *fiber.Ctx) error {
 	var total int64
 	dbQuery.Model(&models.ProductWaste{}).Count(&total)
 
+	// Calculate total pages
+	totalPages := int(total) / query.Limit
+	if int(total)%query.Limit > 0 {
+		totalPages++
+	}
+
 	// Get data dengan pagination
 	if err := dbQuery.Order("created_at DESC").
 		Offset(offset).
@@ -91,15 +96,23 @@ func GetProductWasteList(c *fiber.Ctx) error {
 			"price":        product.Price,
 			"price_format": FormatCurrency(product.Price),
 			"category":     product.Category,
+			"created_at":   product.CreatedAt,
+			"updated_at":   product.UpdatedAt,
 			// "weight":     product.Weight,
 		})
 	}
 
+	// Format meta data
+	meta := map[string]any{
+		"limit": query.Limit,
+		"page":  query.Page,
+		"pages": totalPages,
+		"total": total,
+	}
+
 	response := map[string]any{
 		"products": formattedProducts,
-		"page":     query.Page,
-		"limit":    query.Limit,
-		"total":    total,
+		"meta":     meta,
 	}
 
 	return helpers.Response(c, 200, "Success", "Product waste retrieved successfully", response, nil)
