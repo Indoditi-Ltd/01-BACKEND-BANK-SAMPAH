@@ -15,17 +15,19 @@ type ChildBank struct {
 	RT           string         `json:"rt" gorm:"type:varchar(100);not null"`
 	RW           string         `json:"rw" gorm:"type:varchar(100);not null"`
 	Address      string         `json:"address" gorm:"type:text;not null"`
+	Latitude     float64        `json:"latitude" gorm:"type:decimal(10,8);not null"`
+	Longitude    float64        `json:"longitude" gorm:"type:decimal(11,8);not null"`
 	ParentBankID uint           `json:"-"`
 	ParentBank   ParentBank     `json:"parent_bank" gorm:"foreignKey:ParentBankID"`
 	Norek        uint           `json:"norek" gorm:"type:char(50);not null"`
 }
 
-type ChildBankResponse struct {
-	Id           uint   `json:"id"`
-	Subdistrict  string `json:"subdistrict"`
-	RT           string `json:"rt"`
-	RW           string `json:"rw"`
-	Address      string `json:"address"`
-	ParentBankID uint   `json:"parent_bank_id"`
-	Norek        uint   `json:"norek"`
-}
+// type ChildBankResponse struct {
+// 	Id           uint   `json:"id"`
+// 	Subdistrict  string `json:"subdistrict"`
+// 	RT           string `json:"rt"`
+// 	RW           string `json:"rw"`
+// 	Address      string `json:"address"`
+// 	ParentBankID uint   `json:"parent_bank_id"`
+// 	Norek        uint   `json:"norek"`
+// }
