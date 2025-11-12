@@ -17,5 +17,6 @@ func DatabaseSync() {
 		&models.DonationHistory{},
 		&models.WasteDepositItem{},
 		&models.WasteDeposit{},
+		&models.PickupRequest{},
 	)
 }

@@ -3,6 +3,7 @@ package routes
 import (
 	"backend-mulungs/controllers"
 	"backend-mulungs/controllers/donation"
+	pickuprequest "backend-mulungs/controllers/pickupRequest"
 	"backend-mulungs/controllers/wastedeposit"
 	"backend-mulungs/middleware"
 
@@ -169,6 +170,14 @@ func SetupRoute(app *fiber.App) {
 			wasteDepositGroup.Get("/parentbank/:parent_bank_id", wastedeposit.GetWasteDepositsByParentBank)    // Get by user ID
 			wasteDepositGroup.Post("/", wastedeposit.CreateWasteDeposit)                    // Create new waste deposit
 			wasteDepositGroup.Delete("/:id", wastedeposit.DeleteWasteDeposit)               // Delete waste deposit
+		}
+
+		requestPickup := api.Group("/pickup")
+		{
+			requestPickup.Post("/check-distance", pickuprequest.CheckNearbyBanks)
+			requestPickup.Post("/requests", pickuprequest.CreatePickupRequest)
+			requestPickup.Get("/list-requests", pickuprequest.GetPickupRequests)
+			requestPickup.Put("/requests/:id_request/:status", pickuprequest.UpdatePickupRequestStatus)
 		}
 	}
 }
