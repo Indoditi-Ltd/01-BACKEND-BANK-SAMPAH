@@ -39,6 +39,7 @@ func SeedUsers() error {
 	divID := uint(2)
 	planID := uint(2)
 	parentBankID := uint(1)
+	// childBankID := uint(1)
 
 	// Data user dengan RoleID
 	users := []models.User{
@@ -67,6 +68,7 @@ func SeedUsers() error {
 			Address: "456 User Avenue, Jember",
 			Photo:   "https://placehold.co/600x400.png",
 			RoleID:  childRole.Id,
+			// ChildBankID: &childBankID,
 		},
 		{
 			Name:    "Role End User",

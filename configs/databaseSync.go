@@ -3,10 +3,11 @@ package configs
 import "backend-mulungs/models"
 
 func DatabaseSync() {
-	DB.AutoMigrate(&models.User{},
+	DB.AutoMigrate(
 		&models.Transaction{},
 		&models.ParentBank{},
 		&models.ChildBank{},
+		&models.User{},
 		&models.Ppob{},
 		&models.Company{},
 		&models.HistoryModel{},

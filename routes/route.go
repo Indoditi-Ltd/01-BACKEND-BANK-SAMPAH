@@ -165,6 +165,8 @@ func SetupRoute(app *fiber.App) {
 			wasteDepositGroup.Get("/", wastedeposit.GetAllWasteDeposits)                    // Get all waste deposits
 			wasteDepositGroup.Get("/:id", wastedeposit.GetWasteDepositByID)                 // Get by ID
 			wasteDepositGroup.Get("/user/:user_id", wastedeposit.GetWasteDepositsByUser)    // Get by user ID
+			wasteDepositGroup.Get("/childbank/:child_bank_id", wastedeposit.GetWasteDepositsByChildBank)    // Get by user ID
+			wasteDepositGroup.Get("/parentbank/:parent_bank_id", wastedeposit.GetWasteDepositsByParentBank)    // Get by user ID
 			wasteDepositGroup.Post("/", wastedeposit.CreateWasteDeposit)                    // Create new waste deposit
 			wasteDepositGroup.Delete("/:id", wastedeposit.DeleteWasteDeposit)               // Delete waste deposit
 		}

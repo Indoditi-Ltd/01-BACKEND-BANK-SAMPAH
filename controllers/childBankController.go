@@ -67,6 +67,7 @@ func CreateChildBank(c *fiber.Ctx) error {
 
 	return helpers.Response(c, 201, "Success", "Child Bank created successfully", res, nil)
 }
+
 // READ ALL
 func GetAllChildBanks(c *fiber.Ctx) error {
 	var childBanks []models.ChildBank

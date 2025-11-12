@@ -20,6 +20,7 @@ type ChildBank struct {
 	ParentBankID uint           `json:"-"`
 	ParentBank   ParentBank     `json:"parent_bank" gorm:"foreignKey:ParentBankID"`
 	Norek        uint           `json:"norek" gorm:"type:char(50);not null"`
+	Balance      int            `json:"balance" gorm:"default:0"`
 }
 
 // type ChildBankResponse struct {

@@ -75,7 +75,6 @@ func GetWasteDepositsByUser(c *fiber.Ctx) error {
 
 	return helpers.Response(c, 200, "Success", "Data Found", wasteDeposits, nil)
 }
-
 // CreateWasteDeposit membuat transaksi setoran sampah baru dengan upload S3 dan update balance
 func CreateWasteDeposit(c *fiber.Ctx) error {
 	// Parse sebagai multipart form
@@ -86,16 +85,46 @@ func CreateWasteDeposit(c *fiber.Ctx) error {
 
 	// Ambil values dari form
 	userIDStr := getFirstValue(form.Value["user_id"])
+	childBankIDStr := getFirstValue(form.Value["child_bank_id"])
+	parentBankIDStr := getFirstValue(form.Value["parent_bank_id"])
 
 	// Validate required fields
 	if userIDStr == "" {
 		return helpers.Response(c, fiber.StatusBadRequest, "Failed", "User ID is required", nil, nil)
 	}
 
-	// Convert userID to uint
+	// Validasi: harus pilih salah satu, child bank ATAU parent bank
+	if childBankIDStr == "" && parentBankIDStr == "" {
+		return helpers.Response(c, fiber.StatusBadRequest, "Failed", "Either child_bank_id or parent_bank_id is required", nil, nil)
+	}
+	if childBankIDStr != "" && parentBankIDStr != "" {
+		return helpers.Response(c, fiber.StatusBadRequest, "Failed", "Cannot specify both child_bank_id and parent_bank_id", nil, nil)
+	}
+
+	// Convert IDs to uint
 	userID, err := strconv.ParseUint(userIDStr, 10, 32)
 	if err != nil {
 		return helpers.Response(c, fiber.StatusBadRequest, "Failed", "Invalid user ID format", nil, nil)
+	}
+
+	var childBankID *uint
+	if childBankIDStr != "" {
+		childBankIDUint, err := strconv.ParseUint(childBankIDStr, 10, 32)
+		if err != nil {
+			return helpers.Response(c, fiber.StatusBadRequest, "Failed", "Invalid child bank ID format", nil, nil)
+		}
+		childBankID = new(uint)
+		*childBankID = uint(childBankIDUint)
+	}
+
+	var parentBankID *uint
+	if parentBankIDStr != "" {
+		parentBankIDUint, err := strconv.ParseUint(parentBankIDStr, 10, 32)
+		if err != nil {
+			return helpers.Response(c, fiber.StatusBadRequest, "Failed", "Invalid parent bank ID format", nil, nil)
+		}
+		parentBankID = new(uint)
+		*parentBankID = uint(parentBankIDUint)
 	}
 
 	// Parse items dari form data
@@ -195,11 +224,13 @@ func CreateWasteDeposit(c *fiber.Ctx) error {
 
 	// Create waste deposit
 	wasteDeposit := models.WasteDeposit{
-		UserID:      uint(userID),
-		TotalWeight: totalWeight,
-		TotalPrice:  totalPrice,
-		ReferenceID: referenceID,
-		Items:       depositItems,
+		UserID:       uint(userID),
+		ChildBankID:  childBankID,
+		ParentBankID: parentBankID,
+		TotalWeight:  totalWeight,
+		TotalPrice:   totalPrice,
+		ReferenceID:  referenceID,
+		Items:        depositItems,
 	}
 
 	if err := tx.Create(&wasteDeposit).Error; err != nil {
@@ -295,6 +326,8 @@ func CreateWasteDeposit(c *fiber.Ctx) error {
 	// Reload dengan relations termasuk user dengan balance terbaru
 	if err := configs.DB.
 		Preload("User").
+		Preload("ChildBank").
+		Preload("ParentBank").
 		Preload("Items").
 		Preload("Items.ProductWaste").
 		First(&wasteDeposit, wasteDeposit.Id).Error; err != nil {
@@ -430,4 +463,47 @@ type WasteDepositItemRequest struct {
 	ProductWasteID uint    `json:"product_waste_id"`
 	Weight         float64 `json:"weight"`
 	Unit           string  `json:"unit"`
+}
+
+// GetWasteDepositsByChildBank - Get waste deposits by child bank ID
+func GetWasteDepositsByChildBank(c *fiber.Ctx) error {
+	childBankID := c.Params("child_bank_id")
+	
+	var wasteDeposits []models.WasteDeposit
+	
+	// Query langsung berdasarkan child_bank_id di waste_deposits
+	if err := configs.DB.
+		Preload("User").
+		Preload("ChildBank"). // Preload child bank dari waste deposit
+		Preload("ChildBank.ParentBank"). // Preload parent bank dari child bank
+		Preload("Items").
+		Preload("Items.ProductWaste").
+		Where("child_bank_id = ?", childBankID). // Filter langsung berdasarkan child_bank_id di waste_deposits
+		Order("created_at DESC"). // Urutkan dari yang terbaru
+		Find(&wasteDeposits).Error; err != nil {
+		return helpers.Response(c, 500, "Failed", err.Error(), nil, nil)
+	}
+	
+	return helpers.Response(c, 200, "Success", "Waste deposits retrieved successfully", wasteDeposits, nil)
+}
+
+// GetWasteDepositsByParentBank - Get waste deposits by parent bank ID
+func GetWasteDepositsByParentBank(c *fiber.Ctx) error {
+	parentBankID := c.Params("parent_bank_id")
+	
+	var wasteDeposits []models.WasteDeposit
+	
+	// Query langsung berdasarkan parent_bank_id di waste_deposits
+	if err := configs.DB.
+		Preload("User").
+		Preload("ParentBank"). // Preload parent bank dari waste deposit
+		Preload("Items").
+		Preload("Items.ProductWaste").
+		Where("parent_bank_id = ?", parentBankID). // Filter langsung berdasarkan parent_bank_id di waste_deposits
+		Order("created_at DESC").
+		Find(&wasteDeposits).Error; err != nil {
+		return helpers.Response(c, 500, "Failed", err.Error(), nil, nil)
+	}
+	
+	return helpers.Response(c, 200, "Success", "Waste deposits retrieved successfully", wasteDeposits, nil)
 }
