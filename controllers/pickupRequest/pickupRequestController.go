@@ -228,9 +228,9 @@ func getPickupSuccessMessage(bankType string, bank interface{}) string {
 	return "Request penjemputan berhasil dikirim"
 }
 
-// GetPickupRequests - Get pickup requests with optional filters
+// GetPickupRequests - Get pickup requests with optional filters (user_id untuk child bank, parent_bank_id untuk parent bank)
 func GetPickupRequests(c *fiber.Ctx) error {
-	childBankID := c.Query("child_bank_id")
+	userID := c.Query("user_id")
 	parentBankID := c.Query("parent_bank_id")
 
 	query := configs.DB.
@@ -240,14 +240,36 @@ func GetPickupRequests(c *fiber.Ctx) error {
 		Preload("ParentBank").
 		Where("deleted_at IS NULL")
 
-	if childBankID != "" {
-		query = query.Where("child_bank_id = ?", childBankID)
+	// Filter by user_id (untuk child bank)
+	if userID != "" {
+		// Cari user untuk mendapatkan child_bank_id
+		var user models.User
+		result := configs.DB.
+			Select("id", "child_bank_id").
+			Where("id = ? AND deleted_at IS NULL", userID).
+			First(&user)
+		
+		if result.Error != nil {
+			if result.Error == gorm.ErrRecordNotFound {
+				return helpers.Response(c, 404, "Failed", "User not found", nil, nil)
+			}
+			return helpers.Response(c, 500, "Failed", "Failed to fetch user data", nil, nil)
+		}
+
+		// Cek jika user memiliki child_bank_id
+		if user.ChildBankID == nil {
+			return helpers.Response(c, 404, "Failed", "User does not have associated child bank", nil, nil)
+		}
+
+		query = query.Where("child_bank_id = ?", *user.ChildBankID)
 	}
 
+	// Filter by parent_bank_id (untuk parent bank)
 	if parentBankID != "" {
 		query = query.Where("parent_bank_id = ?", parentBankID)
 	}
 
+	// Jika tidak ada filter, return semua data
 	var pickupRequests []models.PickupRequest
 	result := query.Find(&pickupRequests)
 	if result.Error != nil {
