@@ -282,89 +282,94 @@ func GetPickupRequests(c *fiber.Ctx) error {
 
 	return helpers.Response(c, 200, "Success", "Pickup requests retrieved successfully", pickupRequests, nil)
 }
-
-// UpdatePickupRequestStatus - Update pickup request status dengan flow yang ketat
 func UpdatePickupRequestStatus(c *fiber.Ctx) error {
-	id := c.Params("id_request")
-	status := c.Params("status") // "confirm", "reject", or "complete"
+    id := c.Params("id_request")
+    status := c.Params("status") // "confirm", "reject", or "complete"
 
-	// Validate status
-	if status != "confirm" && status != "reject" && status != "complete" {
-		return helpers.Response(c, 400, "Failed", "Invalid status. Use 'confirm', 'reject' or 'complete'", nil, nil)
-	}
+    // Validate status
+    if status != "confirm" && status != "reject" && status != "complete" {
+        return helpers.Response(c, 400, "Failed", "Invalid status. Use 'confirm', 'reject' or 'complete'", nil, nil)
+    }
 
-	var pickupRequest models.PickupRequest
-	result := configs.DB.
-		Preload("User").
-		Preload("User.Role").
-		Preload("ChildBank").
-		Preload("ParentBank").
-		Where("id = ? AND deleted_at IS NULL", id).
-		First(&pickupRequest)
-	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
-			return helpers.Response(c, 404, "Failed", "Pickup request not found", nil, nil)
-		}
-		return helpers.Response(c, 500, "Failed", "Failed to fetch pickup request", nil, nil)
-	}
+    var pickupRequest models.PickupRequest
+    result := configs.DB.
+        Preload("User").
+        Preload("User.Role").
+        Preload("ChildBank").
+        Preload("ParentBank").
+        Where("id = ? AND deleted_at IS NULL", id).
+        First(&pickupRequest)
+    
+    if result.Error != nil {
+        if result.Error == gorm.ErrRecordNotFound {
+            return helpers.Response(c, 404, "Failed", "Pickup request not found", nil, nil)
+        }
+        return helpers.Response(c, 500, "Failed", "Failed to fetch pickup request", nil, nil)
+    }
 
-	targetStatus := "confirm"
-	message := "confirm"
+    targetStatus := status
+    message := status
 
-	switch status {
-	case "reject":
-		targetStatus = "reject"
-		message = "reject"
-	case "complete":
-		targetStatus = "complete" // Perbaiki: "complete" -> "completed"
-		message = "complete"
-	}
+    // Mapping untuk response message yang lebih user-friendly
+    if status == "confirm" {
+        message = "confirm" // Tetap "confirm" untuk response
+    }
 
-	// Cek jika status sudah sama
-	if pickupRequest.Status == targetStatus {
-		return helpers.Response(c, 400, "Failed", fmt.Sprintf("Pickup request already %s", message), nil, nil)
-	}
+    // Cek jika status sudah sama
+    if pickupRequest.Status == targetStatus {
+        return helpers.Response(c, 400, "Failed", fmt.Sprintf("Pickup request already %sed", message), nil, nil)
+    }
 
-	// Validasi status transition yang lebih ketat
-	switch status {
-	case "confirm":
-		if pickupRequest.Status != "pending" {
-			return helpers.Response(c, 400, "Failed", "Can only confirm pending pickup requests", nil, nil)
-		}
-	case "reject":
-		if pickupRequest.Status != "pending" {
-			return helpers.Response(c, 400, "Failed", "Can only reject pending pickup requests", nil, nil)
-		}
-	case "complete":
-		if pickupRequest.Status != "confirm" {
-			return helpers.Response(c, 400, "Failed", "Can only complete confirmed pickup requests", nil, nil)
-		}
-	}
+    // Validasi status transition
+    switch status {
+    case "confirm":
+        if pickupRequest.Status != "pending" {
+            return helpers.Response(c, 400, "Failed", "Can only confirm pending pickup requests", nil, nil)
+        }
+    case "reject":
+        if pickupRequest.Status != "pending" {
+            return helpers.Response(c, 400, "Failed", "Can only reject pending pickup requests", nil, nil)
+        }
+    case "complete":
+        if pickupRequest.Status != "confirm" {
+            return helpers.Response(c, 400, "Failed", "Can only complete confirmed pickup requests", nil, nil)
+        }
+    }
 
-	// Update status
-	updateData := map[string]any{
-		"status":     targetStatus,
-		"updated_at": time.Now(),
-	}
+    // Update status
+    result = configs.DB.Model(&pickupRequest).Updates(map[string]interface{}{
+        "status":     targetStatus,
+        "updated_at": time.Now(),
+    })
+    
+    if result.Error != nil {
+        fmt.Printf("Database error: %v\n", result.Error)
+        return helpers.Response(c, 500, "Failed", fmt.Sprintf("Failed to %s pickup request", message), nil, nil)
+    }
 
-	result = configs.DB.Model(&pickupRequest).Updates(updateData)
-	if result.Error != nil {
-		return helpers.Response(c, 500, "Failed", fmt.Sprintf("Failed to %s pickup request", message), nil, nil)
-	}
+    if result.RowsAffected == 0 {
+        return helpers.Response(c, 500, "Failed", "No rows affected", nil, nil)
+    }
 
-	// Reload data dengan preload relations untuk response
-	var updatedPickupRequest models.PickupRequest
-	result = configs.DB.
-		Preload("User").
-		Preload("User.Role").
-		Preload("ChildBank").
-		Preload("ParentBank").
-		Where("id = ?", id).
-		First(&updatedPickupRequest)
+    // Reload data untuk response
+    var updatedPickupRequest models.PickupRequest
+    result = configs.DB.
+        Preload("User").
+        Preload("User.Role").
+        Preload("ChildBank").
+        Preload("ParentBank").
+        Where("id = ?", id).
+        First(&updatedPickupRequest)
 
-	if result.Error != nil {
-		return helpers.Response(c, 500, "Failed", "Failed to fetch updated pickup request data", nil, nil)
-	}
+    if result.Error != nil {
+        return helpers.Response(c, 500, "Failed", "Failed to fetch updated pickup request data", nil, nil)
+    }
 
-	return helpers.Response(c, 200, "Success", fmt.Sprintf("Pickup request %s successfully", message), updatedPickupRequest, nil)
+    // Response message yang konsisten dengan "confirm"
+    responseMessage := fmt.Sprintf("Pickup request %sed successfully", message)
+    if message == "confirm" {
+        responseMessage = "Pickup request confirmed successfully"
+    }
+
+    return helpers.Response(c, 200, "Success", responseMessage, updatedPickupRequest, nil)
 }

@@ -17,13 +17,13 @@ type PickupRequest struct {
 	User   User `json:"user" gorm:"foreignKey:UserID"`
 
 	// Bank yang dituju
-	ChildBankID *uint      `json:"-"`
-	ChildBank   *ChildBank `json:"child_bank" gorm:"foreignKey:ChildBankID"`
-	ParentBankID *uint      `json:"-"`
+	ChildBankID  *uint       `json:"-"`
+	ChildBank    *ChildBank  `json:"child_bank" gorm:"foreignKey:ChildBankID"`
+	ParentBankID *uint       `json:"-"`
 	ParentBank   *ParentBank `json:"parent_bank" gorm:"foreignKey:ParentBankID"`
 
 	// Data sederhana - hanya koordinat dan status
 	Latitude  float64 `json:"latitude" gorm:"type:decimal(10,8);not null"`
 	Longitude float64 `json:"longitude" gorm:"type:decimal(11,8);not null"`
-	Status    string  `json:"status" gorm:"type:enum('pending','accept','complete','reject');default:'pending'"`
+	Status    string  `json:"status" gorm:"type:enum('pending','confirm','complete','reject');default:'pending'"`
 }
