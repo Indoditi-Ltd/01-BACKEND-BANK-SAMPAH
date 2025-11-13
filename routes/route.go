@@ -23,6 +23,7 @@ func SetupRoute(app *fiber.App) {
 	{
 		api.Post("/login", controllers.LoginC)
 		api.Post("/register-user", controllers.RegisterUser)
+		api.Post("/register-user-child-bank", controllers.RegisterUserChildBank)
 		api.Post("/callback", controllers.CallbackPrepaid)
 		api.Get("/testBucket", controllers.TestNEOConnection)
 
