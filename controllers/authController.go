@@ -25,7 +25,14 @@ func LoginC(c *fiber.Ctx) error {
 	}
 
 	var user models.User
-	configs.DB.Preload("Division").Preload("Role").Preload("Plan").First(&user, "email = ?", body.Email)
+	// TAMBAHKAN Preload untuk ParentBank dan ChildBank
+	configs.DB.
+		Preload("Division").
+		Preload("Role").
+		Preload("Plan").
+		Preload("ParentBank").    // Tambahkan ini
+		Preload("ChildBank").     // Tambahkan ini
+		First(&user, "email = ?", body.Email)
 
 	if user.Id == 0 {
 		return helpers.Response(c, 400, "Failed", "User not found", nil, nil)
