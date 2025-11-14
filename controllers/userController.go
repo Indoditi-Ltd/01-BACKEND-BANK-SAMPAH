@@ -83,7 +83,7 @@ func RegisterUserChildBank(c *fiber.Ctx) error {
 		}
 		return helpers.Response(c, 400, "Failed", err.Error(), nil, nil)
 	}
-	return helpers.Response(c, 200, "Success", "Admin create successfully", endUser, nil)
+	return helpers.Response(c, 200, "Success", "User create successfully", endUser, nil)
 }
 
 func DivisiUserController(c *fiber.Ctx) error {

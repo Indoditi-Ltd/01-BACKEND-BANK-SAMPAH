@@ -258,3 +258,4 @@ func DeleteChildBank(c *fiber.Ctx) error {
 
 	return helpers.Response(c, 200, "Success", "Child Bank deleted successfully", nil, nil)	
 }
+

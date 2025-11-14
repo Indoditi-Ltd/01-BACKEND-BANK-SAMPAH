@@ -20,5 +20,8 @@ func SeedAll() error {
 	if err := SeedCompany(); err != nil {
 		return err
 	}
+	if err := SeedChildBanks(); err != nil {
+		return err
+	}
 	return nil
 }
