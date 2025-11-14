@@ -81,6 +81,7 @@ func SetupRoute(app *fiber.App) {
 			childBank.Post("/", controllers.CreateChildBank)
 			childBank.Get("/", controllers.GetAllChildBanks)
 			childBank.Get("/:id", controllers.GetChildBankById)
+			childBank.Get("/by-id/:id", controllers.GetUserChildBankByIDC)
 			childBank.Put("/:id", controllers.UpdateChildBank)
 			childBank.Delete("/:id", controllers.DeleteChildBank)
 

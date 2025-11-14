@@ -259,3 +259,23 @@ func DeleteChildBank(c *fiber.Ctx) error {
 	return helpers.Response(c, 200, "Success", "Child Bank deleted successfully", nil, nil)	
 }
 
+func GetUserChildBankByIDC(c *fiber.Ctx) error {
+	// get email and pass from req body
+	id := c.Params("id")
+
+	var user models.User
+	// TAMBAHKAN Preload untuk ParentBank dan ChildBank
+	configs.DB.
+		Preload("Division").
+		Preload("Role").
+		Preload("Plan").
+		Preload("ParentBank"). // Tambahkan ini
+		Preload("ChildBank").  // Tambahkan ini
+		First(&user, id)
+
+	if user.Id == 0 {
+		return helpers.Response(c, 400, "Failed", "User not found", nil, nil)
+	}
+
+	return helpers.Response(c, 200, "Success", "Data User found", user, nil)
+}
