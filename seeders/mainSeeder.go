@@ -5,6 +5,9 @@ func SeedAll() error {
 	if err := SeedRole(); err != nil {
 		return err
 	}
+	if err := SeedChildBanks(); err != nil {
+		return err
+	}
 	if err := SeedParentBank(); err != nil {
 		return err
 	}
@@ -18,9 +21,6 @@ func SeedAll() error {
 		return err
 	}
 	if err := SeedCompany(); err != nil {
-		return err
-	}
-	if err := SeedChildBanks(); err != nil {
 		return err
 	}
 	return nil
