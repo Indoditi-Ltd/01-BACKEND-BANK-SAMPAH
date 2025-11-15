@@ -9,6 +9,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
 )
+
 // CREATE
 func CreateChildBank(c *fiber.Ctx) error {
 	// bikin struct body langsung di dalam function
@@ -71,10 +72,10 @@ func CreateChildBank(c *fiber.Ctx) error {
 // READ ALL dengan Pagination
 func GetAllChildBanks(c *fiber.Ctx) error {
 	var query struct {
-		Search      string `query:"search"`
-		Page        int    `query:"page"`
-		Limit       int    `query:"limit"`
-		Subdistrict string `query:"subdistrict"`
+		Search       string `query:"search"`
+		Page         int    `query:"page"`
+		Limit        int    `query:"limit"`
+		Subdistrict  string `query:"subdistrict"`
 		ParentBankID string `query:"parent_bank_id"`
 	}
 
@@ -97,7 +98,7 @@ func GetAllChildBanks(c *fiber.Ctx) error {
 	// Apply search filter
 	if query.Search != "" {
 		search := "%" + query.Search + "%"
-		dbQuery = dbQuery.Where("subdistrict LIKE ? OR address LIKE ? OR rt LIKE ? OR rw LIKE ?", 
+		dbQuery = dbQuery.Where("subdistrict LIKE ? OR address LIKE ? OR rt LIKE ? OR rw LIKE ?",
 			search, search, search, search)
 	}
 
@@ -133,18 +134,18 @@ func GetAllChildBanks(c *fiber.Ctx) error {
 	var formattedChildBanks []map[string]interface{}
 	for i, bank := range childBanks {
 		formattedBank := map[string]interface{}{
-			"no":           i + 1 + offset,
-			"id":           bank.Id,
-			"subdistrict":  bank.Subdistrict,
-			"rt":           bank.RT,
-			"rw":           bank.RW,
-			"address":      bank.Address,
-			"latitude":     bank.Latitude,
-			"longitude":    bank.Longitude,
-			"norek":        bank.Norek,
-			"parent_bank":  bank.ParentBank,
-			"created_at":   bank.CreatedAt,
-			"updated_at":   bank.UpdatedAt,
+			"no":          i + 1 + offset,
+			"id":          bank.Id,
+			"subdistrict": bank.Subdistrict,
+			"rt":          bank.RT,
+			"rw":          bank.RW,
+			"address":     bank.Address,
+			"latitude":    bank.Latitude,
+			"longitude":   bank.Longitude,
+			"norek":       bank.Norek,
+			"parent_bank": bank.ParentBank,
+			"created_at":  bank.CreatedAt,
+			"updated_at":  bank.UpdatedAt,
 		}
 		formattedChildBanks = append(formattedChildBanks, formattedBank)
 	}
@@ -179,6 +180,7 @@ func GetChildBankById(c *fiber.Ctx) error {
 
 	return helpers.Response(c, 200, "Success", "Child Bank retrieved successfully", childBank, nil)
 }
+
 // Function for Admin in Web (Update Child Bank)
 func UpdateChildBank(c *fiber.Ctx) error {
 	id := c.Params("id")
@@ -256,7 +258,7 @@ func DeleteChildBank(c *fiber.Ctx) error {
 		return helpers.Response(c, 500, "Failed", err.Error(), nil, nil)
 	}
 
-	return helpers.Response(c, 200, "Success", "Child Bank deleted successfully", nil, nil)	
+	return helpers.Response(c, 200, "Success", "Child Bank deleted successfully", nil, nil)
 }
 
 func GetUserChildBankByIDC(c *fiber.Ctx) error {
