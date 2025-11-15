@@ -75,6 +75,7 @@ func GetWasteDepositsByUser(c *fiber.Ctx) error {
 
 	return helpers.Response(c, 200, "Success", "Data Found", wasteDeposits, nil)
 }
+
 // CreateWasteDeposit membuat transaksi setoran sampah baru dengan upload S3 dan update balance
 func CreateWasteDeposit(c *fiber.Ctx) error {
 	// Parse sebagai multipart form
@@ -157,7 +158,7 @@ func CreateWasteDeposit(c *fiber.Ctx) error {
 	var depositItems []models.WasteDepositItem
 
 	// Handle file uploads untuk setiap item
-	files := form.File["photos"]
+	files := form.File["photo[]"]
 	fileIndex := 0
 
 	for _, itemReq := range items {
@@ -468,31 +469,31 @@ type WasteDepositItemRequest struct {
 // GetWasteDepositsByChildBank - Get waste deposits by child bank ID
 func GetWasteDepositsByChildBank(c *fiber.Ctx) error {
 	childBankID := c.Params("child_bank_id")
-	
+
 	var wasteDeposits []models.WasteDeposit
-	
+
 	// Query langsung berdasarkan child_bank_id di waste_deposits
 	if err := configs.DB.
 		Preload("User").
-		Preload("ChildBank"). // Preload child bank dari waste deposit
+		Preload("ChildBank").            // Preload child bank dari waste deposit
 		Preload("ChildBank.ParentBank"). // Preload parent bank dari child bank
 		Preload("Items").
 		Preload("Items.ProductWaste").
 		Where("child_bank_id = ?", childBankID). // Filter langsung berdasarkan child_bank_id di waste_deposits
-		Order("created_at DESC"). // Urutkan dari yang terbaru
+		Order("created_at DESC").                // Urutkan dari yang terbaru
 		Find(&wasteDeposits).Error; err != nil {
 		return helpers.Response(c, 500, "Failed", err.Error(), nil, nil)
 	}
-	
+
 	return helpers.Response(c, 200, "Success", "Waste deposits retrieved successfully", wasteDeposits, nil)
 }
 
 // GetWasteDepositsByParentBank - Get waste deposits by parent bank ID
 func GetWasteDepositsByParentBank(c *fiber.Ctx) error {
 	parentBankID := c.Params("parent_bank_id")
-	
+
 	var wasteDeposits []models.WasteDeposit
-	
+
 	// Query langsung berdasarkan parent_bank_id di waste_deposits
 	if err := configs.DB.
 		Preload("User").
@@ -504,6 +505,6 @@ func GetWasteDepositsByParentBank(c *fiber.Ctx) error {
 		Find(&wasteDeposits).Error; err != nil {
 		return helpers.Response(c, 500, "Failed", err.Error(), nil, nil)
 	}
-	
+
 	return helpers.Response(c, 200, "Success", "Waste deposits retrieved successfully", wasteDeposits, nil)
 }
